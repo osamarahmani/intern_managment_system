@@ -1,0 +1,99 @@
+.gateway-header {
+  background-color: #FFFFFF;
+  width: 100%;
+  height: 64px;
+  padding: 0 40px;
+  border-bottom: 1px solid #EEEEEE;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 100;
+}
+
+.header-container {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+}
+
+.brand-logo {
+  width: 160px;
+  height: auto;
+  aspect-ratio: 707 / 236;
+  object-fit: contain;
+  display: block;
+  transition: transform 0.25s ease;
+}
+
+.brand-logo:hover {
+  transform: scale(1.02);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* Register Prompt Styling */
+.register-prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prompt-text {
+  color: #757575;
+  font-size: 14px;
+}
+
+.register-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--primary-variant); /* #2A259A */
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s ease, text-decoration 0.2s ease;
+}
+
+.register-link:hover {
+  text-decoration: underline;
+  color: var(--primary); /* #3D35C4 */
+}
+
+.register-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* Responsive Styles */
+@media (max-width: 600px) {
+  .gateway-header {
+    padding: 0 20px;
+    height: 56px;
+  }
+
+  .brand-logo {
+    width: 130px;
+  }
+
+  .prompt-text {
+    font-size: 12px;
+  }
+
+  .register-link {
+    font-size: 12px;
+  }
+}
