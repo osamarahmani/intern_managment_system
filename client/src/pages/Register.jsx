@@ -1,10 +1,11 @@
-import React from 'react';
-import Stepper from '../components/Stepper';
-import PersonalDetails from '../components/steps/PersonalDetails';
-import ContactDetails from '../components/steps/ContactDetails';
-import ProgramDetails from '../components/steps/ProgramDetails';
-import ReviewSubmit from '../components/steps/ReviewSubmit';
-import SuccessScreen from '../components/SuccessScreen';
+import React, { useState } from 'react';
+import Stepper from '../components/registration/Stepper';
+import PersonalDetails from '../components/registration/steps/PersonalDetails';
+import ContactDetails from '../components/registration/steps/ContactDetails';
+import ProgramDetails from '../components/registration/steps/ProgramDetails';
+import ReviewSubmit from '../components/registration/steps/ReviewSubmit';
+import SuccessScreen from '../components/registration/SuccessScreen';
+import { supabase } from '../supabase/client';
 
 const Register = ({ 
   currentStep, 
@@ -12,9 +13,12 @@ const Register = ({
   formData, 
   setFormData, 
   submitted, 
-  setSubmitted 
+  setSubmitted,
+  onBackToLogin
 }) => {
-  
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
   const updateFormData = (newData) => {
     setFormData((prev) => ({ ...prev, ...newData }));
   };
@@ -27,8 +31,92 @@ const Register = ({
     setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
-  const handleFormSubmit = () => {
-    setSubmitted(true);
+  const handleFormSubmit = async () => {
+    setLoading(true);
+    setErrorMsg('');
+
+    try {
+      // 1. Verify that entered Batch Number and Registration Key are active in Supabase
+      const { data: batchData, error: batchError } = await supabase
+        .from('batches')
+        .select('*')
+        .eq('batch_number', formData.batchNumber?.trim())
+        .eq('registration_key', formData.registrationKey?.trim())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (batchError) throw batchError;
+
+      if (!batchData) {
+        throw new Error('Registration failed: Invalid or inactive Batch Number and Registration Key.');
+      }
+
+      // Step 1 — create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.mail,
+        password: formData.password
+      });
+      if (authError) throw authError;
+
+      // Step 2 — wait for session to be established
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // Step 3 — insert intern record
+      const { data: internData, error: internError } = await supabase
+        .from('interns')
+        .insert({
+          name: formData.name,
+          college_name: formData.collegeName,
+          dept: formData.dept,
+          year: formData.year,
+          sem: formData.sem,
+          mail: formData.mail,
+          number: formData.number,
+          starting_date: formData.startingDate || new Date().toISOString().split('T')[0],
+          ending_date: formData.endingDate || new Date().toISOString().split('T')[0],
+          photo_url: formData.photoUrl || null,
+          status: 'pending',
+          batch_number: formData.batchNumber
+        })
+        .select()
+        .single();
+      if (internError) throw internError;
+
+      // Upload profile photo if provided
+      if (formData.photo) {
+        console.log('formData.photo type:', typeof formData.photo);
+        console.log('formData.photo instanceof File:', formData.photo instanceof File);
+        console.log('formData.photo value:', formData.photo);
+        try {
+          const { uploadPhoto } = await import('../services/internService');
+          const uploadedPhotoUrl = await uploadPhoto(formData.photo, internData.id);
+          await supabase
+            .from('interns')
+            .update({ photo_url: uploadedPhotoUrl })
+            .eq('id', internData.id);
+        } catch (uploadErr) {
+          console.error('Upload failed:', uploadErr);
+          alert('Photo upload failed: ' + (uploadErr.message || uploadErr));
+        }
+      }
+
+      // Step 4 — upsert profile record linking auth user to intern
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: authData.user.id,
+          role: 'intern',
+          intern_id: internData.id
+        });
+      if (profileError) throw profileError;
+
+      // 5. Successful! Set submitted true to show success page
+      setSubmitted(true);
+    } catch (err) {
+      setErrorMsg(err.message || 'An unexpected error occurred during registration.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Render form contents dynamically based on active step
@@ -92,6 +180,43 @@ const Register = ({
             {/* Stepper Tabs progress header */}
             <Stepper currentStep={currentStep} />
             
+            {/* Display Error Message Banner */}
+            {errorMsg && (
+              <div 
+                style={{ 
+                  background: '#FCE8E6', 
+                  color: '#C5221F', 
+                  padding: '12px', 
+                  borderRadius: '8px', 
+                  fontSize: '13px', 
+                  marginBottom: '20px', 
+                  fontWeight: '500', 
+                  lineHeight: '1.4' 
+                }}
+                role="alert"
+              >
+                {errorMsg}
+              </div>
+            )}
+
+            {/* Display Loading Processing State Overlay/Banner */}
+            {loading && (
+              <div 
+                style={{ 
+                  background: 'rgba(61, 53, 196, 0.08)', 
+                  color: '#2A259A', 
+                  padding: '10px 12px', 
+                  borderRadius: '8px', 
+                  fontSize: '13px', 
+                  marginBottom: '20px', 
+                  fontWeight: '600', 
+                  textAlign: 'center' 
+                }}
+              >
+                Processing your registration securely... Please wait.
+              </div>
+            )}
+
             {/* Active form page panel content */}
             <div className="registration-form-content">
               {renderStepContent()}
@@ -99,6 +224,24 @@ const Register = ({
           </>
         )}
       </div>
+
+      {/* Return to Login link helper at bottom */}
+      {!submitted && (
+        <button
+          onClick={onBackToLogin}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#757575',
+            fontSize: '13px',
+            marginTop: '20px',
+            cursor: 'pointer',
+            textDecoration: 'underline'
+          }}
+        >
+          Return to Login
+        </button>
+      )}
     </main>
   );
 };

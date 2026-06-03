@@ -12,6 +12,12 @@ const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
     }
   };
 
+  const photoUrl = React.useMemo(() => {
+    if (!formData.photo) return null;
+    if (typeof formData.photo === 'string') return formData.photo;
+    return URL.createObjectURL(formData.photo);
+  }, [formData.photo]);
+
   return (
     <div className="review-step-wrapper">
       {/* Intern ID Card Container */}
@@ -19,9 +25,9 @@ const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
         {/* Left Column (30% Width - Purple ID Badge Header) */}
         <div className="id-card-left">
           <div className="id-card-avatar-container">
-            {formData.photo ? (
+            {photoUrl ? (
               <img 
-                src={formData.photo} 
+                src={photoUrl} 
                 alt={`${formData.name}'s Profile Photo`} 
                 className="id-card-avatar"
               />
@@ -60,6 +66,12 @@ const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
           <div className="id-card-row">
             <span className="id-card-label">Email Address</span>
             <span className="id-card-value">{formData.mail || 'N/A'}</span>
+          </div>
+
+          {/* Row: Batch Number */}
+          <div className="id-card-row">
+            <span className="id-card-label">Batch Number</span>
+            <span className="id-card-value">{formData.batchNumber || 'N/A'}</span>
           </div>
 
           {/* Row: Phone Number */}

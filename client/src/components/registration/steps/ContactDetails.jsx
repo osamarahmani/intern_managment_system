@@ -5,6 +5,16 @@ const ContactDetails = ({ formData, onUpdate, onNext, onBack }) => {
   const [photoError, setPhotoError] = useState('');
   const fileInputRef = useRef(null);
 
+  const [photoPreview, setPhotoPreview] = useState(() => {
+    if (formData.photo) {
+      if (typeof formData.photo === 'string') {
+        return formData.photo;
+      }
+      return URL.createObjectURL(formData.photo);
+    }
+    return '';
+  });
+
   const handleFieldChange = (field, value) => {
     onUpdate({ [field]: value });
     if (localErrors[field]) {
@@ -25,6 +35,7 @@ const ContactDetails = ({ formData, onUpdate, onNext, onBack }) => {
     if (file.size > maxSizeBytes) {
       setPhotoError('File exceeds 5MB limit');
       onUpdate({ photo: null });
+      setPhotoPreview('');
       return;
     }
 
@@ -33,18 +44,19 @@ const ContactDetails = ({ formData, onUpdate, onNext, onBack }) => {
     if (!acceptedTypes.includes(file.type)) {
       setPhotoError('Please upload a valid JPG, PNG, or WEBP image.');
       onUpdate({ photo: null });
+      setPhotoPreview('');
       return;
     }
 
     // Clear photo errors
     setPhotoError('');
 
-    // Convert file to Base64 for state storage
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      onUpdate({ photo: reader.result });
-    };
-    reader.readAsDataURL(file);
+    // Store actual File object in formData
+    onUpdate({ photo: file });
+
+    // Create preview URL separately just for display
+    const previewUrl = URL.createObjectURL(file);
+    setPhotoPreview(previewUrl);
   };
 
   const triggerFileSelect = () => {
@@ -149,10 +161,10 @@ const ContactDetails = ({ formData, onUpdate, onNext, onBack }) => {
 
         <div className="photo-upload-container">
           {/* Avatar Preview (Rendered above hint text if file exists) */}
-          {formData.photo && (
+          {photoPreview && (
             <div className="avatar-preview-container">
               <img 
-                src={formData.photo} 
+                src={photoPreview} 
                 alt="Profile Avatar Preview" 
                 className="avatar-preview-circle" 
               />

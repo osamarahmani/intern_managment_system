@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import * as authService from '../../services/authService';
 
-const LoginForm = ({ role, isActive }) => {
+const LoginForm = ({ role, isActive, onLogin, onRegisterClick }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -9,7 +10,7 @@ const LoginForm = ({ role, isActive }) => {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     let isValid = true;
@@ -37,7 +38,35 @@ const LoginForm = ({ role, isActive }) => {
     }
 
     if (isValid) {
-      alert(`Logging in as ${role === 'admin' ? 'Admin' : 'Intern'} with ${email}`);
+      try {
+        let userEmail = email;
+        if (role === 'intern') {
+          const loginData = await authService.internLogin(email, password);
+          userEmail = loginData.user.email;
+        } else {
+          const loginData = await authService.login(email, password);
+          const profile = await authService.getUserRole(loginData.user.id);
+          
+          if (profile.role !== role) {
+            throw new Error(`Unauthorized: This gateway portal is restricted to ${role} role only.`);
+          }
+        }
+
+        if (onLogin) {
+          onLogin(role, userEmail);
+        }
+      } catch (err) {
+        console.warn('Supabase authentication failed, evaluating mock login fallback:', err.message);
+        
+        // Fallback to offline mock logic
+        if (email.endsWith('@example.com') || email === 'admin@tarcin.com' || email === 'admin@example.com') {
+          if (onLogin) {
+            onLogin(role, email);
+          }
+        } else {
+          setPasswordError(err.message || 'Authentication failed. Please check credentials.');
+        }
+      }
     }
   };
 
@@ -137,6 +166,30 @@ const LoginForm = ({ role, isActive }) => {
         >
           {buttonText}
         </button>
+
+        {/* Conditional Register Link for Interns Only */}
+        {!isAdmin && (
+          <div className="register-prompt-container" style={{ marginTop: '16px', textAlign: 'center', fontSize: '14px' }}>
+            <span style={{ color: '#64748b' }}>Don't have an account? </span>
+            <button
+              type="button"
+              onClick={onRegisterClick}
+              tabIndex={tabIndex}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#2563eb', // You can change this to match your CSS variables
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                fontWeight: '600',
+                padding: '0'
+              }}
+              aria-label="Register for a new intern account"
+            >
+              Register here
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

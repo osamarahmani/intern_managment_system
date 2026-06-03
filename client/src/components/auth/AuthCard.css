@@ -208,7 +208,6 @@
   cursor: pointer;
   padding: 4px;
   display: flex;
-  aria-label: "Toggle password visibility";
   color: #757575;
   transition: color 0.2s ease;
 }
