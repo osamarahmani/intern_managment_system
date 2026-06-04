@@ -42,6 +42,18 @@ const InternSidebar = ({ activePage, setActivePage, onLogout }) => {
             <span>My Tasks</span>
           </div>
         </button>
+
+        <button
+          type="button"
+          className={`intern-sidebar-link ${activePage === 'directory' ? 'active' : ''}`}
+          onClick={() => setActivePage('directory')}
+          aria-current={activePage === 'directory' ? 'page' : undefined}
+        >
+          <div className="intern-sidebar-link-content">
+            <i className="ti ti-users" aria-hidden="true" />
+            <span>Teammates Profile</span>
+          </div>
+        </button>
       </nav>
 
       {/* Sidebar Footer / Logout */}

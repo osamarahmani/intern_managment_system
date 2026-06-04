@@ -9,12 +9,13 @@ import './InternLayout.css';
 import InternProfilePage from './pages/InternProfile';
 import InternProjectPage from './pages/InternProject';
 import InternTasksPage from './pages/InternTasks';
+import BatchDirectory from './pages/BatchDirectory';
 
 const InternLayout = ({ onLogout }) => {
   const [internData, setInternData] = useState(null);
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [activePage, setActivePage] = useState('profile'); // 'profile' | 'project' | 'tasks'
+  const [activePage, setActivePage] = useState('profile'); // 'profile' | 'project' | 'tasks' | 'directory'
   const [loading, setLoading] = useState(true);
 
   const fetchInternData = async () => {
@@ -118,17 +119,19 @@ const InternLayout = ({ onLogout }) => {
         overflow: 'hidden'
       }}>
         {/* Header */}
-        <InternHeader
-          activePage={activePage}
-          internData={internData}
-          internName={internData?.name || ''}
-          photoUrl={internData?.photo_url || ''}
-        />
+        {activePage !== 'directory' && (
+          <InternHeader
+            activePage={activePage}
+            internData={internData}
+            internName={internData?.name || ''}
+            photoUrl={internData?.photo_url || ''}
+          />
+        )}
 
         {/* Page content */}
         <div style={{
           flex: 1,
-          padding: '24px 32px',
+          padding: activePage === 'directory' ? '0' : '24px 32px',
           boxSizing: 'border-box',
           width: '100%',
           display: 'flex',
@@ -141,16 +144,34 @@ const InternLayout = ({ onLogout }) => {
           ) : (
             <>
               {activePage === 'profile' && (
-                <InternProfilePage internData={internData} />
+                <InternProfilePage 
+                  internData={internData} 
+                  internName={internData?.name || ''}
+                  avatarUrl={internData?.photo_url || ''}
+                />
               )}
               {activePage === 'project' && (
-                <InternProjectPage project={project} />
+                <InternProjectPage 
+                  project={project} 
+                  internName={internData?.name || ''}
+                  avatarUrl={internData?.photo_url || ''}
+                />
               )}
               {activePage === 'tasks' && (
                 <InternTasksPage 
                   tasks={tasks} 
                   internId={internData?.id}
                   onUpdateTaskStatus={handleUpdateTaskStatus} 
+                  internName={internData?.name || ''}
+                  avatarUrl={internData?.photo_url || ''}
+                />
+              )}
+              {activePage === 'directory' && (
+                <BatchDirectory 
+                  internId={internData?.id}
+                  supabase={supabase}
+                  internName={internData?.name || ''}
+                  avatarUrl={internData?.photo_url || ''}
                 />
               )}
             </>

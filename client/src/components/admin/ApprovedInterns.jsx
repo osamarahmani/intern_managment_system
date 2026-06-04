@@ -97,6 +97,7 @@ const ApprovedInterns = () => {
   // UI Feedback Alerts
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [savedVisibility, setSavedVisibility] = useState({});
 
   // Helper Resets
   const resetProjectForm = () => {
@@ -353,6 +354,28 @@ const ApprovedInterns = () => {
     }
   };
 
+  const handleUpdateVisibilityMode = async (batchId, mode) => {
+    try {
+      const { error } = await supabase
+        .from('batches')
+        .update({ visibility_mode: mode })
+        .eq('id', batchId);
+
+      if (error) throw error;
+
+      setBatches((prev) =>
+        prev.map((b) => (b.id === batchId ? { ...b, visibility_mode: mode } : b))
+      );
+
+      setSavedVisibility((prev) => ({ ...prev, [batchId]: true }));
+      setTimeout(() => {
+        setSavedVisibility((prev) => ({ ...prev, [batchId]: false }));
+      }, 2000);
+    } catch (err) {
+      alert('Failed to save visibility mode: ' + err.message);
+    }
+  };
+
   const handleAssignProject = async (e) => {
     e.preventDefault();
     if (!selectedIntern) return;
@@ -453,8 +476,7 @@ const ApprovedInterns = () => {
       {activeView === 'batches' && (
         <div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '32px' }}>
-            <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#111111', margin: 0 }}>Batch Operations Console</h2>
-            <p style={{ fontSize: '14px', color: '#757575', margin: 0 }}>Provision registration keys and inspect active batches</p>
+            <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#111111', margin: 0 }}>Batch Management</h2>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px', alignItems: 'start' }}>
@@ -659,6 +681,60 @@ const ApprovedInterns = () => {
                             {batch.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </div>
+                      </div>
+
+                      {/* Visibility Control Row */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        flexWrap: 'wrap',
+                        borderTop: '1px solid #EEEEEE',
+                        paddingTop: '12px',
+                        marginTop: '4px'
+                      }}>
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#000000ff' }}>
+                          Profiles Visibility:
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {[
+                            { mode: 'public', label: 'Public' },
+                            { mode: 'private', label: 'Private' },
+                            { mode: 'intern_choice', label: "Intern's Choice" }
+                          ].map(({ mode, label }) => {
+                            const isActive = (batch.visibility_mode || 'intern_choice') === mode;
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => handleUpdateVisibilityMode(batch.id, mode)}
+                                style={{
+                                  background: isActive ? '#3D35C4' : '#F5F5F5',
+                                  color: isActive ? '#FFFFFF' : '#616161',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  padding: '6px 14px',
+                                  fontSize: '12px',
+                                  fontWeight: isActive ? '600' : '400',
+                                  cursor: 'pointer',
+                                  transition: 'background 0.2s, color 0.2s'
+                                }}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {savedVisibility[batch.id] && (
+                          <span style={{
+                            color: '#3D35C4',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            marginLeft: '4px'
+                          }}>
+                            ✓ Saved
+                          </span>
+                        )}
                       </div>
 
                       {/* Bottom row — Show Key button */}

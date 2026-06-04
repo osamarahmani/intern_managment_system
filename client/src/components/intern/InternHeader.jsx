@@ -9,6 +9,8 @@ const InternHeader = ({ activePage, internName, photoUrl }) => {
         return 'My Project';
       case 'tasks':
         return 'My Tasks';
+      case 'directory':
+        return 'Teammates Profile';
       default:
         return 'Intern Portal';
     }
