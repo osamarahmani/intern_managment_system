@@ -230,7 +230,7 @@
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.01);
   box-sizing: border-box;
   margin: 0 auto;
-  max-width: 700px;
+  width: 100%;
 }
 
 .intern-empty-icon {
@@ -258,7 +258,7 @@
   background: #FFFFFF;
   border-radius: 12px;
   border: 1px solid #E0E0E0;
-  max-width: 700px;
+  width: 100%;
   margin: 0 auto;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.01);
@@ -372,7 +372,7 @@
   border: 1px solid #E0E0E0;
   border-radius: 12px;
   padding: 32px;
-  max-width: 700px;
+  width: 100%;
   margin: 0 auto;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.01);
   box-sizing: border-box;
@@ -483,7 +483,7 @@
 
 /* Tasks Page Layout */
 .tasks-page-wrapper {
-  max-width: 800px;
+  width: 100%;
   margin: 0 auto;
 }
 

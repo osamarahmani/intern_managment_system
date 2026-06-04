@@ -1,16 +1,69 @@
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../../../utils/formatDate';
 
+const thStyle = {
+  padding: '10px 16px',
+  fontSize: '12px',
+  fontWeight: '500',
+  color: '#757575',
+  textAlign: 'left',
+  borderBottom: '1px solid #E0E0E0',
+  borderRight: '1px solid #F0F0F0',
+  whiteSpace: 'nowrap'
+};
+
+const tdStyle = {
+  padding: '10px 16px',
+  fontSize: '13px',
+  color: '#212121',
+  borderBottom: '1px solid #F0F0F0',
+  borderRight: '1px solid #F0F0F0'
+};
+
+const sectionHeading = {
+  padding: '10px 16px',
+  fontSize: '12px',
+  fontWeight: '500',
+  color: '#9E9E9E',
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  borderBottom: '1px solid #E0E0E0',
+  borderTop: '1px solid #E0E0E0'
+};
+
+const inProgressBadge = {
+  background: '#E8F4FD',
+  color: '#1565C0',
+  border: '1px solid #1565C0',
+  padding: '2px 8px',
+  borderRadius: '4px',
+  fontSize: '11px',
+  fontWeight: '700',
+  textTransform: 'uppercase'
+};
+
+const completedBadge = {
+  background: '#E8F5E9',
+  color: '#2E7D32',
+  border: '1px solid #2E7D32',
+  padding: '2px 8px',
+  borderRadius: '4px',
+  fontSize: '11px',
+  fontWeight: '700',
+  textTransform: 'uppercase'
+};
+
+const upcomingBadge = {
+  background: '#FFF3E0',
+  color: '#E65100',
+  border: '1px solid #E65100',
+  padding: '2px 8px',
+  borderRadius: '4px',
+  fontSize: '11px',
+  fontWeight: '700',
+  textTransform: 'uppercase'
+};
 const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    try {
-      const options = { year: 'numeric', month: 'short', day: 'numeric' };
-      return new Date(dateStr).toLocaleDateString(undefined, options);
-    } catch (e) {
-      return dateStr;
-    }
-  };
-
   // Find the current active task: earliest task that is not completed
   const activeTask = tasks.find((t) => t.status !== 'completed');
 
@@ -32,32 +85,6 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
     }
   }, [activeTask?.id]);
 
-  // Helper for status styling classes
-  const getStatusClass = (status) => {
-    switch (status) {
-      case 'in_progress':
-        return 'status-in-progress';
-      case 'completed':
-        return 'status-completed';
-      case 'not_started':
-      default:
-        return 'status-not-started';
-    }
-  };
-
-  // Helper to format status text nicely
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'not_started':
-      default:
-        return 'Not Started';
-    }
-  };
-
   // Empty State (No tasks assigned)
   if (!tasks || tasks.length === 0) {
     return (
@@ -70,145 +97,182 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
   }
 
   return (
-    <div className="tasks-page-wrapper">
-      {/* Tasks Header Row */}
-      <div className="tasks-page-header" style={{ marginBottom: '24px' }}>
-        <h2 className="tasks-page-title" style={{ fontSize: '24px', fontWeight: '700', color: '#111111', margin: 0 }}>My Tasks</h2>
-        <span className="tasks-count-summary" style={{ fontSize: '14px', color: '#757575', fontWeight: '500' }}>
-          {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} total
-        </span>
-      </div>
-
+    <div style={{
+      width: '100%',
+      minHeight: 'calc(100vh - 130px)',
+      background: '#FFFFFF',
+      borderRadius: '12px',
+      border: '1px solid #E0E0E0',
+      overflow: 'hidden',
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      
       {/* Section 1: Current Active Task */}
-      <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Current Active Task</h3>
-        {activeTask ? (
-          <div style={{ background: '#E8F4FD', padding: '20px', border: '1px solid #B3D7FF', borderRadius: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
-              <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#1565C0', margin: 0 }}>{activeTask.title}</h4>
-              <span className={`task-status-select ${getStatusClass(selectedStatus)}`} style={{ padding: '4px 12px', borderRadius: '12px', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>
-                {getStatusLabel(selectedStatus)}
-              </span>
-            </div>
-            
-            <p style={{ fontSize: '13.5px', color: '#1565C0', margin: '0 0 16px 0' }}>
-              Expected Completion Date: <strong>{formatDate(activeTask.expected_date)}</strong>
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid #B3D7FF', paddingTop: '16px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '200px' }}>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#1565C0', textTransform: 'uppercase' }}>Update Status</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSelectedStatus(val);
-                    if (val !== 'completed') {
-                      onUpdateTaskStatus(activeTask.id, val, null);
-                    }
-                  }}
-                  style={{
-                    height: '36px',
-                    padding: '0 10px',
-                    border: '1px solid #B3D7FF',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    background: '#FFFFFF',
-                    color: '#1565C0',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <option value="not_started">Not Started</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-
-              {selectedStatus === 'completed' && (
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: '700', color: '#1565C0', textTransform: 'uppercase' }}>Submission Date</label>
-                    <input
-                      type="date"
-                      value={submissionDate}
-                      onChange={(e) => setSubmissionDate(e.target.value)}
-                      required
-                      style={{ height: '36px', padding: '0 10px', border: '1px solid #B3D7FF', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF', color: '#333333', boxSizing: 'border-box' }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!submissionDate) {
-                        alert('Please enter a submission date.');
-                        return;
-                      }
-                      onUpdateTaskStatus(activeTask.id, 'completed', submissionDate);
-                    }}
-                    style={{ height: '36px', padding: '0 20px', background: '#1565C0', color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}
-                  >
-                    Submit Work
-                  </button>
-                </div>
+      <div>
+        <div style={{ ...sectionHeading, background: '#F8F7FF' }}>
+          Current Assigned Work
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#F5F5F5' }}>
+                <th style={thStyle}>Task</th>
+                <th style={thStyle}>Expected Date</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeTask ? (
+                <tr style={{ background: '#EEF4FF' }}>
+                  <td style={tdStyle}>{activeTask.title}</td>
+                  <td style={tdStyle}>{formatDate(activeTask.expected_date)}</td>
+                  <td style={tdStyle}>
+                    <select
+                      value={selectedStatus}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedStatus(val);
+                        if (val !== 'completed') {
+                          onUpdateTaskStatus(activeTask.id, val, null);
+                        }
+                      }}
+                      style={{
+                        height: '30px',
+                        padding: '0 8px',
+                        border: '1px solid #B3D7FF',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        background: '#FFFFFF',
+                        color: '#1565C0',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="not_started">Not Started</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </td>
+                  <td style={tdStyle}>
+                    {selectedStatus === 'completed' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="date"
+                          value={submissionDate}
+                          onChange={(e) => setSubmissionDate(e.target.value)}
+                          required
+                          style={{ height: '30px', padding: '0 8px', border: '1px solid #B3D7FF', borderRadius: '4px', fontSize: '12px', background: '#FFFFFF', color: '#333333' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!submissionDate) {
+                              alert('Please select a submission date.');
+                              return;
+                            }
+                            onUpdateTaskStatus(activeTask.id, 'completed', submissionDate);
+                          }}
+                          style={{ height: '30px', padding: '0 12px', background: '#03DAC6', color: '#000000', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '11px', cursor: 'pointer' }}
+                        >
+                          Mark Done
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#9E9E9E', fontStyle: 'italic' }}>Select Completed to submit</span>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                <tr>
+                  <td colSpan={4} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                    No active task in progress.
+                  </td>
+                </tr>
               )}
-            </div>
-          </div>
-        ) : (
-          <div style={{ background: '#FAFAFA', border: '1px dashed #E0E0E0', borderRadius: '8px', padding: '24px', textAlign: 'center' }}>
-            <i className="ti ti-circle-check" style={{ fontSize: '32px', color: '#2E7D32', marginBottom: '8px', display: 'block' }} />
-            <p style={{ color: '#757575', fontSize: '13.5px', margin: 0, fontWeight: '500' }}>All tasks completed! You are fully caught up.</p>
-          </div>
-        )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Section 2: Upcoming Tasks */}
-      <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Upcoming Tasks</h3>
-        {upcomingTasks.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {upcomingTasks.map((task) => (
-              <div key={task.id} style={{ background: '#FFFBF5', padding: '16px', border: '1px solid #FFEED9', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#E65100', margin: '0 0 4px 0' }}>{task.title}</h4>
-                  <span style={{ fontSize: '12px', color: '#757575' }}>
-                    Expected Date: <strong>{formatDate(task.expected_date)}</strong>
-                  </span>
-                </div>
-                <span style={{ fontSize: '10px', background: '#FFF3E0', color: '#E65100', border: '1px solid #E65100', padding: '2px 8px', borderRadius: '4px', fontWeight: '700', textTransform: 'uppercase' }}>
-                  Upcoming
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: '#9E9E9E', fontSize: '13px', margin: 0 }}>No upcoming tasks queued.</p>
-        )}
+      <div>
+        <div style={{ ...sectionHeading, background: '#FFF8F0' }}>
+          Upcoming Tasks
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#F5F5F5' }}>
+                <th style={thStyle}>Task</th>
+                <th style={thStyle}>Expected Date</th>
+                <th style={thStyle}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {upcomingTasks.length > 0 ? (
+                upcomingTasks.map((task, index) => (
+                  <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#FFFBF5' }}>
+                    <td style={tdStyle}>{task.title}</td>
+                    <td style={tdStyle}>{formatDate(task.expected_date)}</td>
+                    <td style={tdStyle}>
+                      <span style={upcomingBadge}>Upcoming</span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                    No upcoming tasks queued.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Section 3: Finished Works */}
-      <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Finished Works</h3>
-        {finishedTasks.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {finishedTasks.map((task) => (
-              <div key={task.id} style={{ background: '#F9FBF9', padding: '16px', border: '1px solid #E2EFE2', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#2E7D32', margin: '0 0 4px 0' }}>{task.title}</h4>
-                  <span style={{ fontSize: '12px', color: '#757575' }}>
-                    Completion Date: <strong>{formatDate(task.submission_date)}</strong>
-                  </span>
-                </div>
-                <span style={{ fontSize: '10px', background: '#E8F5E9', color: '#2E7D32', border: '1px solid #2E7D32', padding: '2px 8px', borderRadius: '4px', fontWeight: '700', textTransform: 'uppercase' }}>
-                  Completed
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: '#9E9E9E', fontSize: '13px', margin: 0 }}>No completed tasks yet.</p>
-        )}
+      <div>
+        <div style={{ ...sectionHeading, background: '#F0FFF4' }}>
+          Finished Works
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#F5F5F5' }}>
+                <th style={thStyle}>Task</th>
+                <th style={thStyle}>Expected Date</th>
+                <th style={thStyle}>Completion Date</th>
+                <th style={thStyle}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {finishedTasks.length > 0 ? (
+                finishedTasks.map((task, index) => (
+                  <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FFF9' }}>
+                    <td style={tdStyle}>{task.title}</td>
+                    <td style={tdStyle}>{formatDate(task.expected_date)}</td>
+                    <td style={tdStyle}>{formatDate(task.submission_date)}</td>
+                    <td style={tdStyle}>
+                      <span style={completedBadge}>Completed</span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                    No finished tasks yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
     </div>
   );
 };

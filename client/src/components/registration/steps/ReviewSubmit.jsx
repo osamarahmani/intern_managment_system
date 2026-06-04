@@ -1,16 +1,8 @@
 import React from 'react';
+import { formatDate } from '../../../utils/formatDate';
 
 const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
   // Safe helper to format dates for display (e.g. YYYY-MM-DD to standard reading format)
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    try {
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      return new Date(dateStr).toLocaleDateString(undefined, options);
-    } catch (e) {
-      return dateStr;
-    }
-  };
 
   const photoUrl = React.useMemo(() => {
     if (!formData.photo) return null;

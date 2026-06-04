@@ -620,3 +620,22 @@
     max-width: 100%;
   }
 }
+
+/* Redesigned Intern Sidebar List Card */
+.intern-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border-bottom: 1px solid #F5F5F5;
+  transition: background-color 0.2s, border-left-color 0.2s;
+}
+.intern-list-item:hover {
+  background: #F8F7FF;
+}
+.intern-list-item.active {
+  background: #EEEDfe;
+  border-left: 3px solid #3D35C4;
+}

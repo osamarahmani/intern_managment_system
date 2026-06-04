@@ -57,30 +57,75 @@ const AdminLayout = ({ onLogout }) => {
   };
 
   return (
-    <div className="admin-layout-container">
-      {/* Fixed Left Sidebar */}
-      <Sidebar
-        activePage={activePage}
-        setActivePage={setActivePage}
-        pendingCount={pendingInterns.length}
-        onLogout={onLogout}
-      />
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      width: '100vw',
+      overflow: 'hidden'
+    }}>
+      {/* Sidebar — fixed width */}
+      <div style={{
+        width: '220px',
+        flexShrink: 0,
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        height: '100vh',
+        background: '#3D35C4',
+        zIndex: 100
+      }}>
+        <Sidebar
+          activePage={activePage}
+          setActivePage={setActivePage}
+          pendingCount={pendingInterns.length}
+          onLogout={onLogout}
+        />
+      </div>
 
-      {/* Main Content Pane */}
-      <main className="admin-main-content">
-        {/* Top Header */}
-        <header className="admin-page-header" role="banner">
-          <h1 className="admin-header-title">{getPageTitle()}</h1>
-          <div className="admin-header-right">
-            <span className="admin-user-badge">Admin Panel</span>
-          </div>
-        </header>
+      {/* Main content — takes ALL remaining width */}
+      <div style={{
+        marginLeft: '220px',
+        flex: 1,
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        width: 'calc(100vw - 220px)',
+        overflow: 'hidden'
+      }}>
+        {/* Header */}
+        <div style={{
+          width: '100%',
+          height: '64px',
+          background: '#FFFFFF',
+          borderBottom: '1px solid #EEEEEE',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 32px',
+          boxSizing: 'border-box',
+          flexShrink: 0
+        }}>
+          <span style={{ fontSize: '18px', fontWeight: '500' }}>{getPageTitle()}</span>
+          <span style={{
+            background: '#3D35C4',
+            color: '#fff',
+            fontSize: '12px',
+            padding: '4px 12px',
+            borderRadius: '6px'
+          }}>Admin Panel</span>
+        </div>
 
-        {/* Dynamic Page Views */}
-        <div className="admin-page-body">
-          {activePage === 'dashboard' ? (
-            <ApprovedInterns />
-          ) : (
+        {/* Page content */}
+        <div style={{
+          flex: 1,
+          padding: '24px 32px',
+          boxSizing: 'border-box',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {activePage === 'dashboard' && <ApprovedInterns />}
+          {activePage === 'approvals' && (
             <PendingApprovals
               pendingInterns={pendingInterns}
               onApprove={handleApprove}
@@ -88,7 +133,7 @@ const AdminLayout = ({ onLogout }) => {
             />
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 };

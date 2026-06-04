@@ -1,3 +1,27 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+.admin-layout,
+.intern-layout,
+.main-content,
+.page-wrapper,
+.page-content,
+.admin-main,
+.intern-main {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+
 :root {
   --primary: #3D35C4;
   --primary-variant: #2A259A;
@@ -15,16 +39,11 @@
   --sans: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-* {
-  box-sizing: border-box;
+body {
   margin: 0;
   padding: 0;
-}
-
-body {
-
+  width: 100%;
   min-height: 100vh;
-  margin: 0;
   background:
     radial-gradient(
       circle at 15% 20%,
@@ -43,14 +62,8 @@ body {
     ),
     #fafafa;
   position: relative;
-  margin: 0;
   font-family: var(--sans);
-
   color: var(--on-background);
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -74,6 +87,8 @@ body::before {
 }
 
 #root {
+  margin: 0;
+  padding: 0;
   width: 100%;
   min-height: 100vh;
   display: flex;
@@ -643,4 +658,29 @@ body::before {
   .registration-main-heading {
     font-size: 24px;
   }
+}
+
+/* Redesign Layout Classes */
+.main-content {
+  margin-left: 220px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 32px;
+}
+
+.page-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E0E0E0;
+  overflow: hidden;
 }

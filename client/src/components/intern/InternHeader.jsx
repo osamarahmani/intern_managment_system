@@ -24,7 +24,17 @@ const InternHeader = ({ activePage, internName, photoUrl }) => {
   };
 
   return (
-    <header className="intern-page-header" role="banner">
+    <div role="banner" style={{
+      width: '100%',
+      height: '64px',
+      background: '#FFFFFF',
+      borderBottom: '1px solid #EEEEEE',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 32px',
+      boxSizing: 'border-box'
+    }}>
       <h1 className="intern-header-title">{getPageTitle()}</h1>
       <div className="intern-header-right">
         {photoUrl ? (
@@ -40,7 +50,7 @@ const InternHeader = ({ activePage, internName, photoUrl }) => {
         )}
         <span className="intern-header-name">{internName || 'Intern'}</span>
       </div>
-    </header>
+    </div>
   );
 };
 

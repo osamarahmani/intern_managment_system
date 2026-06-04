@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SuccessScreen = () => {
+const SuccessScreen = ({ onBackToLogin }) => {
   return (
     <div className="success-screen-wrapper" aria-live="polite">
       {/* Icon Badge */}
@@ -28,7 +28,29 @@ const SuccessScreen = () => {
       {/* Message Heading */}
       <h2 className="success-heading">Registration Successful!</h2>
       {/* Subtext */}
-      <p className="success-subtext">You will receive a confirmation on your email</p>
+      <p className="success-subtext" style={{ marginBottom: '24px' }}>
+        Your registration is pending review. Please login after you are approved by the admin.
+      </p>
+
+      {/* Go to Login Button */}
+      <button
+        onClick={onBackToLogin}
+        style={{
+          height: '40px',
+          background: '#3D35C4',
+          color: '#FFFFFF',
+          border: 'none',
+          borderRadius: '8px',
+          fontWeight: '600',
+          fontSize: '14px',
+          padding: '0 24px',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(61, 53, 196, 0.2)',
+          transition: 'background-color 0.2s'
+        }}
+      >
+        Go to Login
+      </button>
     </div>
   );
 };

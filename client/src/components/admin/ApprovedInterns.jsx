@@ -1,11 +1,70 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../supabase/client';
+import { formatDate } from '../../utils/formatDate';
+
+const thStyle = {
+  padding: '10px 16px',
+  fontSize: '12px',
+  fontWeight: '500',
+  color: '#757575',
+  textAlign: 'left',
+  borderBottom: '1px solid #E0E0E0',
+  borderRight: '1px solid #F0F0F0',
+  whiteSpace: 'nowrap'
+};
+
+const tdStyle = {
+  padding: '10px 16px',
+  fontSize: '13px',
+  color: '#212121',
+  borderBottom: '1px solid #F0F0F0',
+  borderRight: '1px solid #F0F0F0'
+};
+
+const sectionHeading = {
+  padding: '10px 16px',
+  fontSize: '12px',
+  fontWeight: '500',
+  color: '#9E9E9E',
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  borderBottom: '1px solid #E0E0E0',
+  borderTop: '1px solid #E0E0E0'
+};
+
+const inProgressBadge = {
+  background: '#E8F4FD',
+  color: '#1565C0',
+  border: '1px solid #1565C0',
+  padding: '2px 8px',
+  borderRadius: '4px',
+  fontSize: '11px',
+  fontWeight: '700',
+  textTransform: 'uppercase'
+};
+
+const completedBadge = {
+  background: '#E8F5E9',
+  color: '#2E7D32',
+  border: '1px solid #2E7D32',
+  padding: '2px 8px',
+  borderRadius: '4px',
+  fontSize: '11px',
+  fontWeight: '700',
+  textTransform: 'uppercase'
+};
 
 const ApprovedInterns = () => {
   // Navigation & View States
   const [activeView, setActiveView] = useState('batches'); // 'batches' | 'batchDetails'
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [selectedIntern, setSelectedIntern] = useState(null);
+
+  // Split Panel Resizing States & Refs
+  const [leftWidth, setLeftWidth] = useState(340);
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef(null);
+  const dragRef = useRef(null);
 
   // Database Record States
   const [batches, setBatches] = useState([]);
@@ -24,9 +83,14 @@ const ApprovedInterns = () => {
   const [projectLive, setProjectLive] = useState('');
 
   // Redesigned Task Form States
-  const [activeTab, setActiveTab] = useState('project'); // 'project' | 'tasks'
+  const [activeTab, setActiveTab] = useState('details'); // 'details' | 'project' | 'tasks'
   const [assignWork, setAssignWork] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
+
+  // Details Tab States
+  const [editedIntern, setEditedIntern] = useState(null);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsSaved, setDetailsSaved] = useState(false);
 
   // UI Feedback Alerts
   const [successMsg, setSuccessMsg] = useState('');
@@ -59,7 +123,7 @@ const ApprovedInterns = () => {
     if (selectedBatch) {
       fetchInternsForBatch(selectedBatch.batch_number);
       setSelectedIntern(null); // Reset active intern panel
-      setActiveTab('project');
+      setActiveTab('details');
     }
   }, [selectedBatch]);
 
@@ -70,9 +134,84 @@ const ApprovedInterns = () => {
       // Reset forms
       resetProjectForm();
       resetTaskForm();
-      setActiveTab('project');
+      setActiveTab('details');
     }
   }, [selectedIntern]);
+
+  // 4. Populate editedIntern when selectedIntern changes
+  useEffect(() => {
+    if (selectedIntern) {
+      setEditedIntern({ ...selectedIntern });
+      setDetailsSaved(false);
+    }
+  }, [selectedIntern]);
+
+  // 5. Handle Resizable Split Panel dragging events
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging || !containerRef.current) return;
+      const containerLeft = containerRef.current.getBoundingClientRect().left;
+      const newWidth = e.clientX - containerLeft;
+      // Clamp between 220px and 500px
+      const clamped = Math.min(500, Math.max(220, newWidth));
+      setLeftWidth(clamped);
+    };
+
+    const handleMouseUp = () => setIsDragging(false);
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  // Save handler for Details Tab
+  const handleSaveDetails = async () => {
+    if (!editedIntern || !selectedIntern) return;
+    setSavingDetails(true);
+    setDetailsSaved(false);
+    try {
+      const { error } = await supabase
+        .from('interns')
+        .update({
+          name: editedIntern.name,
+          college_name: editedIntern.college_name,
+          dept: editedIntern.dept,
+          year: editedIntern.year,
+          sem: editedIntern.sem,
+          mail: editedIntern.mail,
+          number: editedIntern.number,
+          starting_date: editedIntern.starting_date,
+          ending_date: editedIntern.ending_date,
+          batch_number: editedIntern.batch_number
+        })
+        .eq('id', selectedIntern.id);
+      if (error) throw error;
+
+      // Update local interns list state
+      setInterns((prev) =>
+        prev.map((i) => (i.id === selectedIntern.id ? { ...i, ...editedIntern } : i))
+      );
+      // Keep selectedIntern reference in sync
+      setSelectedIntern(editedIntern);
+      setDetailsSaved(true);
+      setTimeout(() => setDetailsSaved(false), 3000);
+    } catch (err) {
+      alert('Failed to save: ' + err.message);
+    } finally {
+      setSavingDetails(false);
+    }
+  };
 
   // ==========================================================================
   // Fetch Functions
@@ -279,7 +418,11 @@ const ApprovedInterns = () => {
 
 
   return (
-    <div style={{ flex: 1, width: '100%', boxSizing: 'border-box' }}>
+    <div style={{
+      width: '100%',
+      flex: 1,
+      boxSizing: 'border-box'
+    }}>
       
       {/* ==========================================================================
           VIEW 1: BATCH OPERATIONS DASHBOARD (DEFAULT VIEW)
@@ -433,11 +576,29 @@ const ApprovedInterns = () => {
             </button>
           </div>
 
-          {/* View 2 Layout Columns: Intern Sidebar (35%) vs Management Panel (65%) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '35% 65%', gap: '24px', alignItems: 'start' }}>
-            
-            {/* Left Column: Intern List Sidebar */}
-            <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E0E0E0', minHeight: '400px' }}>
+          {/* Draggable Resizable Split Panel Container */}
+          <div
+            ref={containerRef}
+            style={{
+              display: 'flex',
+              gap: '0',
+              alignItems: 'stretch',
+              width: '100%',
+              overflow: 'hidden',
+              height: 'calc(100vh - 180px)'
+            }}
+          >
+            {/* Left Column: Intern List Sidebar (Resizable) */}
+            <div style={{
+              width: `${leftWidth}px`,
+              flexShrink: 0,
+              overflowY: 'auto',
+              background: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #E0E0E0',
+              padding: '20px',
+              boxSizing: 'border-box'
+            }}>
               <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '14px', marginTop: 0 }}>Approved Interns</h3>
 
               {interns.length === 0 ? (
@@ -446,34 +607,77 @@ const ApprovedInterns = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {interns.map((intern) => {
                     const isSelected = selectedIntern && selectedIntern.id === intern.id;
+                    const initials = intern.name
+                      ? intern.name.split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                      : 'IN';
+                    const isApproved = intern.status === 'approved';
                     return (
                       <div
                         key={intern.id}
                         onClick={() => setSelectedIntern(intern)}
-                        style={{
-                          padding: '12px',
-                          borderRadius: '8px',
-                          border: isSelected ? '1px solid #3D35C4' : '1px solid #EEEEEE',
-                          background: isSelected ? 'rgba(61, 53, 196, 0.04)' : '#FFFFFF',
-                          cursor: 'pointer',
-                          transition: 'border-color 0.2s'
-                        }}
+                        className={`intern-list-item ${isSelected ? 'active' : ''}`}
                       >
-                        <h4 style={{ fontSize: '13.5px', fontWeight: '600', color: isSelected ? '#3D35C4' : '#212121', margin: '0 0 4px 0' }}>{intern.name}</h4>
-                        <p style={{ fontSize: '11px', color: '#757575', margin: 0 }}>{intern.mail}</p>
-                        <span style={{
-                          display: 'inline-block',
-                          fontSize: '9.5px',
-                          background: '#E6F4EA',
-                          color: '#137333',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          fontWeight: '700',
-                          marginTop: '6px',
-                          textTransform: 'uppercase'
-                        }}>
-                          approved
-                        </span>
+                        {/* Avatar */}
+                        {intern.photo_url || intern.photo ? (
+                          <img
+                            src={intern.photo_url || intern.photo}
+                            alt={intern.name}
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              flexShrink: 0
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
+                              background: '#3D35C4',
+                              color: '#FFFFFF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: '600',
+                              fontSize: '14px',
+                              flexShrink: 0
+                            }}
+                          >
+                            {initials}
+                          </div>
+                        )}
+                        
+                        {/* Info details */}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '500', color: '#212121', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {intern.name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                background: isApproved ? '#E6F4EA' : '#FFF3E0',
+                                color: isApproved ? '#137333' : '#E65100',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: '700',
+                                textTransform: 'uppercase',
+                                flexShrink: 0
+                              }}
+                            >
+                              {intern.status || 'approved'}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '12px', color: '#9E9E9E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {intern.mail}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#BDBDBD', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {intern.dept} &bull; {intern.college_name || intern.collegeName}
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
@@ -481,74 +685,229 @@ const ApprovedInterns = () => {
               )}
             </div>
 
-            {/* Right Column: Intern Management Panels */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              
+            {/* Drag Handle separator */}
+            <div
+              ref={dragRef}
+              onMouseDown={handleMouseDown}
+              style={{
+                width: '6px',
+                flexShrink: 0,
+                cursor: 'col-resize',
+                background: isDragging ? '#3D35C4' : 'transparent',
+                borderRadius: '3px',
+                margin: '0 4px',
+                transition: 'background 0.2s',
+                position: 'relative',
+                zIndex: 10
+              }}
+              title="Drag to resize"
+            >
+              {/* Visual indicator dots */}
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                {[0,1,2].map(i => (
+                  <div key={i} style={{
+                    width: '4px',
+                    height: '4px',
+                    borderRadius: '50%',
+                    background: '#BDBDBD'
+                  }} />
+                ))}
+              </div>
+            </div>
+
+            {/* Right Column: Intern Management Panel (Independent Scrolling) */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              height: 'calc(100vh - 180px)',
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #E0E0E0',
+              boxSizing: 'border-box',
+              minWidth: 0
+            }}>
               {selectedIntern ? (
                 <>
-                  {/* Panel A: Intern Profile Information Card */}
-                  <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                      <div>
-                        <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#212121', margin: '0 0 4px 0' }}>{selectedIntern.name}</h3>
-                        <p style={{ fontSize: '13px', color: '#757575', margin: '0 0 4px 0' }}>Email: {selectedIntern.mail}</p>
-                        <p style={{ fontSize: '13px', color: '#757575', margin: 0 }}>College: {selectedIntern.college_name || selectedIntern.collegeName || 'N/A'}</p>
-                      </div>
-
-                      <span style={{
-                        fontSize: '11px',
-                        background: '#E6F4EA',
-                        color: '#137333',
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontWeight: '700',
-                        textTransform: 'uppercase'
-                      }}>
-                        approved
-                      </span>
+                  {/* Tab header — sticky at top */}
+                  <div style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10,
+                    background: '#FAFAFA',
+                    borderBottom: '1px solid #E0E0E0',
+                    flexShrink: 0
+                  }}>
+                    <div style={{ display: 'flex' }}>
+                      {['details', 'project', 'tasks'].map(tab => (
+                        <button
+                          key={tab}
+                          type="button"
+                          onClick={() => setActiveTab(tab)}
+                          style={{
+                            padding: '14px 16px',
+                            background: 'none',
+                            border: 'none',
+                            borderBottom: activeTab === tab ? '2px solid #3D35C4' : '2px solid transparent',
+                            color: activeTab === tab ? '#3D35C4' : '#757575',
+                            fontWeight: activeTab === tab ? '600' : '400',
+                            fontSize: '14px',
+                            cursor: 'pointer',
+                            outline: 'none',
+                            textTransform: 'capitalize'
+                          }}
+                        >
+                          {tab}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Tabs Header */}
-                  <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #E0E0E0', marginBottom: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('project')}
-                      style={{
-                        padding: '10px 16px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: activeTab === 'project' ? '2px solid #3D35C4' : '2px solid transparent',
-                        color: activeTab === 'project' ? '#3D35C4' : '#757575',
-                        fontWeight: '600',
-                        fontSize: '14px',
-                        cursor: 'pointer',
-                        outline: 'none'
-                      }}
-                    >
-                      Project
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('tasks')}
-                      style={{
-                        padding: '10px 16px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: activeTab === 'tasks' ? '2px solid #3D35C4' : '2px solid transparent',
-                        color: activeTab === 'tasks' ? '#3D35C4' : '#757575',
-                        fontWeight: '600',
-                        fontSize: '14px',
-                        cursor: 'pointer',
-                        outline: 'none'
-                      }}
-                    >
-                      Tasks
-                    </button>
-                  </div>
+                  {/* Scrollable tab content */}
+                  <div style={{ flex: 1, overflowY: 'auto' }}>
+                    
+                    {/* Tab Contents: Details */}
+                    {activeTab === 'details' && editedIntern && (
+                      <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {/* Status badge row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', margin: 0 }}>
+                            Intern Details
+                          </h3>
+                          <span style={{
+                            fontSize: '11px',
+                            background: '#E6F4EA',
+                            color: '#137333',
+                            padding: '3px 10px',
+                            borderRadius: '4px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase'
+                          }}>
+                            {selectedIntern.status}
+                          </span>
+                        </div>
 
-                  {/* Tab Contents: Project */}
-                  {activeTab === 'project' && (
+                        {/* 2-column editable fields grid */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: '16px'
+                        }}>
+                          {[
+                            { label: 'Name', key: 'name', type: 'text' },
+                            { label: 'College Name', key: 'college_name', type: 'text' },
+                            { label: 'Department', key: 'dept', type: 'text' },
+                            { label: 'Email', key: 'mail', type: 'email' },
+                            { label: 'Phone Number', key: 'number', type: 'text' },
+                            { label: 'Starting Date', key: 'starting_date', type: 'date' },
+                            { label: 'Ending Date', key: 'ending_date', type: 'date' },
+                            { label: 'Batch Number', key: 'batch_number', type: 'text' },
+                          ].map(({ label, key, type }) => (
+                            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <label style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: '#9E9E9E',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em'
+                              }}>
+                                {label}
+                              </label>
+                              <input
+                                type={type}
+                                value={editedIntern[key] || ''}
+                                onChange={(e) => setEditedIntern(prev => ({ ...prev, [key]: e.target.value }))}
+                                style={{
+                                  height: '40px',
+                                  padding: '0 12px',
+                                  border: '1px solid #E0E0E0',
+                                  borderRadius: '8px',
+                                  fontSize: '13px',
+                                  color: '#212121',
+                                  background: '#FFFFFF',
+                                  boxSizing: 'border-box',
+                                  width: '100%',
+                                  outline: 'none'
+                                }}
+                                onFocus={e => e.target.style.borderColor = '#3D35C4'}
+                                onBlur={e => e.target.style.borderColor = '#E0E0E0'}
+                              />
+                            </div>
+                          ))}
+
+                          {/* Year dropdown */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '600', color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Year</label>
+                            <select
+                              value={editedIntern.year || ''}
+                              onChange={(e) => setEditedIntern(prev => ({ ...prev, year: e.target.value }))}
+                              style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '8px', fontSize: '13px', color: '#212121', background: '#FFFFFF', boxSizing: 'border-box' }}
+                            >
+                              <option value="">Select Year</option>
+                              <option value="1st Year">1st Year</option>
+                              <option value="2nd Year">2nd Year</option>
+                              <option value="3rd Year">3rd Year</option>
+                              <option value="4th Year">4th Year</option>
+                            </select>
+                          </div>
+
+                          {/* Semester dropdown */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '600', color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Semester</label>
+                            <select
+                              value={editedIntern.sem || ''}
+                              onChange={(e) => setEditedIntern(prev => ({ ...prev, sem: e.target.value }))}
+                              style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '8px', fontSize: '13px', color: '#212121', background: '#FFFFFF', boxSizing: 'border-box' }}
+                            >
+                              <option value="">Select Sem</option>
+                              {[1,2,3,4,5,6,7,8].map(s => (
+                                <option key={s} value={String(s)}>{s}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Save button row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '8px', borderTop: '1px solid #F0F0F0' }}>
+                          <button
+                            type="button"
+                            onClick={handleSaveDetails}
+                            disabled={savingDetails}
+                            style={{
+                              height: '40px',
+                              background: '#3D35C4',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontWeight: '600',
+                              fontSize: '13px',
+                              cursor: savingDetails ? 'not-allowed' : 'pointer',
+                              padding: '0 24px',
+                              opacity: savingDetails ? 0.7 : 1
+                            }}
+                          >
+                            {savingDetails ? 'Saving...' : 'Save Changes'}
+                          </button>
+                          {detailsSaved && (
+                            <span style={{ fontSize: '13px', color: '#03DAC6', fontWeight: '500' }}>
+                              ✓ Changes saved successfully
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab Contents: Project */}
+                    {activeTab === 'project' && (
                     <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                       <div>
                         <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Project Details</h3>
@@ -646,130 +1005,164 @@ const ApprovedInterns = () => {
 
                   {/* Tab Contents: Tasks */}
                   {activeTab === 'tasks' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid #E0E0E0', borderRadius: '8px', overflow: 'hidden' }}>
                       
-                      {/* Section 1: Current active task card */}
-                      <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)' }}>
-                        <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Current Assigned Work</h3>
-                        
-                        {tasks.find(t => t.status !== 'completed') ? (
-                          (() => {
-                            const activeTask = tasks.find(t => t.status !== 'completed');
-                            return (
-                              <div style={{ background: '#E8F4FD', padding: '16px', border: '1px solid #B3D7FF', borderRadius: '8px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
-                                  <h4 style={{ fontSize: '14.5px', fontWeight: '700', color: '#1565C0', margin: 0 }}>{activeTask.title}</h4>
-                                  <span style={{ fontSize: '10px', background: '#E8F4FD', color: '#1565C0', border: '1px solid #1565C0', padding: '2px 8px', borderRadius: '4px', fontWeight: '700', textTransform: 'uppercase' }}>
-                                    In Progress
-                                  </span>
-                                </div>
-                                <p style={{ fontSize: '13px', color: '#1565C0', margin: '0 0 6px 0' }}>
-                                  Expected Completion Date: <strong>{activeTask.expected_date}</strong>
-                                </p>
-                              </div>
-                            );
-                          })()
-                        ) : (
-                          <p style={{ color: '#9E9E9E', fontSize: '13px', margin: 0 }}>No active task in progress.</p>
-                        )}
+                      {/* Section 1: Current Assigned Work */}
+                      <div>
+                        <div style={{ ...sectionHeading, background: '#F8F7FF' }}>
+                          Current Assigned Work
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ background: '#F5F5F5' }}>
+                                <th style={thStyle}>Task</th>
+                                <th style={thStyle}>Expected Date</th>
+                                <th style={thStyle}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const currentTask = tasks.find(t => t.status !== 'completed');
+                                return currentTask ? (
+                                  <tr style={{ background: '#EEF4FF' }}>
+                                    <td style={tdStyle}>{currentTask.title}</td>
+                                    <td style={tdStyle}>{formatDate(currentTask.expected_date)}</td>
+                                    <td style={tdStyle}>
+                                      <span style={inProgressBadge}>In Progress</span>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  <tr>
+                                    <td colSpan={3} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                                      No active task in progress.
+                                    </td>
+                                  </tr>
+                                );
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
 
-                      {/* Section 2: Finished Works list */}
-                      <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)' }}>
-                        <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Finished Works</h3>
-                        
-                        {tasks.filter(t => t.status === 'completed').length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {tasks.filter(t => t.status === 'completed').map((task) => (
-                              <div key={task.id} style={{ background: '#F9FBF9', padding: '14px', border: '1px solid #E2EFE2', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                  <h4 style={{ fontSize: '13.5px', fontWeight: '600', color: '#2E7D32', margin: '0 0 4px 0' }}>{task.title}</h4>
-                                  <span style={{ fontSize: '11px', color: '#757575' }}>
-                                    Completed Date: <strong>{task.submission_date}</strong>
-                                  </span>
-                                </div>
-                                <span style={{ fontSize: '10px', background: '#E8F5E9', color: '#2E7D32', border: '1px solid #2E7D32', padding: '2px 8px', borderRadius: '4px', fontWeight: '700', textTransform: 'uppercase' }}>
-                                  Completed
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p style={{ color: '#9E9E9E', fontSize: '13px', margin: 0 }}>No completed tasks yet.</p>
-                        )}
+                      {/* Section 2: Finished Works */}
+                      <div>
+                        <div style={{ ...sectionHeading, background: '#F0FFF4' }}>
+                          Finished Works
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ background: '#F5F5F5' }}>
+                                <th style={thStyle}>Task</th>
+                                <th style={thStyle}>Expected Date</th>
+                                <th style={thStyle}>Completion Date</th>
+                                <th style={thStyle}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const finishedList = tasks.filter(t => t.status === 'completed');
+                                return finishedList.length > 0 ? (
+                                  finishedList.map((task, index) => (
+                                    <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FFF9' }}>
+                                      <td style={tdStyle}>{task.title}</td>
+                                      <td style={tdStyle}>{formatDate(task.expected_date)}</td>
+                                      <td style={tdStyle}>{formatDate(task.submission_date)}</td>
+                                      <td style={tdStyle}>
+                                        <span style={completedBadge}>Completed</span>
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <tr>
+                                    <td colSpan={4} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                                      No finished tasks.
+                                    </td>
+                                  </tr>
+                                );
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
 
-                      {/* Section 3: Upcoming Tasks list */}
-                      <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)' }}>
-                        <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Upcoming Tasks</h3>
-                        
-                        {(() => {
-                          const activeTask = tasks.find(t => t.status !== 'completed');
-                          const upcomingList = tasks.filter(t => t.status !== 'completed' && t.id !== activeTask?.id);
-                          
-                          return upcomingList.length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                              {upcomingList.map((task) => (
-                                <div key={task.id} style={{ background: '#FFFBF5', padding: '14px', border: '1px solid #FFEED9', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div>
-                                    <h4 style={{ fontSize: '13.5px', fontWeight: '600', color: '#E65100', margin: '0 0 4px 0' }}>{task.title}</h4>
-                                    <span style={{ fontSize: '11px', color: '#757575' }}>
-                                      Expected Date: <strong>{task.expected_date}</strong>
-                                    </span>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <span style={{ fontSize: '10px', background: '#FFF3E0', color: '#E65100', border: '1px solid #E65100', padding: '2px 8px', borderRadius: '4px', fontWeight: '700', textTransform: 'uppercase' }}>
-                                      Upcoming
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteTask(task.id)}
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                      title="Delete Task"
-                                    >
-                                      <i className="ti ti-trash" style={{ color: '#D32F2F', fontSize: '18px' }} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p style={{ color: '#9E9E9E', fontSize: '13px', margin: 0 }}>No upcoming tasks queued.</p>
-                          );
-                        })()}
+                      {/* Section 3: Upcoming Tasks */}
+                      <div>
+                        <div style={{ ...sectionHeading, background: '#FFF8F0' }}>
+                          Upcoming Tasks
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ background: '#F5F5F5' }}>
+                                <th style={thStyle}>Task</th>
+                                <th style={thStyle}>Expected Date</th>
+                                <th style={thStyle}>Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const activeTask = tasks.find(t => t.status !== 'completed');
+                                const upcomingList = tasks.filter(t => t.status !== 'completed' && t.id !== activeTask?.id);
+                                return upcomingList.length > 0 ? (
+                                  upcomingList.map((task, index) => (
+                                    <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#FFFBF5' }}>
+                                      <td style={tdStyle}>{task.title}</td>
+                                      <td style={tdStyle}>{formatDate(task.expected_date)}</td>
+                                      <td style={tdStyle}>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteTask(task.id)}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                          title="Delete Task"
+                                        >
+                                          <i className="ti ti-trash" style={{ color: '#B00020', fontSize: '18px' }} />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <tr>
+                                    <td colSpan={3} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                                      No upcoming tasks queued.
+                                    </td>
+                                  </tr>
+                                );
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
 
-                      {/* Section 4: Assign New Task form */}
-                      <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)' }}>
-                        <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Assign New Task</h3>
-                        
-                        <form onSubmit={handleAssignTask} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Assign Work</label>
+                      {/* Section 4: Assign New Task */}
+                      <div style={{ padding: '20px', borderTop: '1px solid #E0E0E0', background: '#FAFAFA' }}>
+                        <h4 style={{ fontSize: '12px', fontWeight: '600', color: '#757575', textTransform: 'uppercase', marginBottom: '12px', marginTop: 0 }}>Assign New Task</h4>
+                        <form onSubmit={handleAssignTask} style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                          <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '600', color: '#757575' }}>Assign Work</label>
                             <input
                               type="text"
                               placeholder="Describe the task to assign"
                               value={assignWork}
                               onChange={(e) => setAssignWork(e.target.value)}
                               required
-                              style={{ height: '38px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                              style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
                             />
                           </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Expected Finish Date</label>
+                          <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '600', color: '#757575' }}>Expected Finish Date</label>
                             <input
                               type="date"
                               value={expectedDate}
                               onChange={(e) => setExpectedDate(e.target.value)}
                               required
-                              style={{ height: '38px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                              style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
                             />
                           </div>
-
                           <button
                             type="submit"
-                            style={{ height: '38px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', alignSelf: 'flex-start', padding: '0 24px', marginTop: '4px' }}
+                            style={{ height: '40px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', padding: '0 24px' }}
                           >
                             Assign Task
                           </button>
@@ -778,6 +1171,7 @@ const ApprovedInterns = () => {
 
                     </div>
                   )}
+                  </div>
                 </>
               ) : (
                 /* Empty Right Sidebar State when no intern is selected */

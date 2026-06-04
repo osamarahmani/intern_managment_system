@@ -1,79 +1,93 @@
 import React from 'react';
+import { formatDate } from '../../../utils/formatDate';
 
 const InternProfile = ({ internData }) => {
   if (!internData) return null;
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    try {
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      return new Date(dateStr).toLocaleDateString(undefined, options);
-    } catch (e) {
-      return dateStr;
-    }
-  };
-
   return (
-    <div className="profile-card-container">
-      {/* Left Column - Badge */}
-      <div className="profile-card-left">
-        {internData.photo_url ? (
-          <img 
-            src={internData.photo_url} 
-            alt={`${internData.name}'s Profile`} 
-            className="profile-avatar-img"
-          />
+    <div style={{
+      display: 'flex',
+      width: '100%',
+      minHeight: 'calc(100vh - 130px)',
+      background: '#FFFFFF',
+      borderRadius: '12px',
+      border: '1px solid #E0E0E0',
+      overflow: 'hidden'
+    }}>
+      {/* Left purple panel */}
+      <div style={{
+        width: '280px',
+        flexShrink: 0,
+        background: '#3D35C4',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '40px 24px'
+      }}>
+        {/* Avatar */}
+        {internData.photo_url || internData.photo ? (
+          <img src={internData.photo_url || internData.photo} alt={internData.name} style={{
+            width: '120px', height: '120px',
+            borderRadius: '50%', objectFit: 'cover',
+            border: '3px solid rgba(255,255,255,0.3)'
+          }} />
         ) : (
-          <div className="profile-avatar-placeholder">
-            <i className="ti ti-user" aria-hidden="true" />
+          <div style={{
+            width: '120px', height: '120px',
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.2)',
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '40px', fontWeight: '500', color: '#FFFFFF'
+          }}>
+            {internData.name?.charAt(0).toUpperCase()}
           </div>
         )}
-        <h2 className="profile-name">{internData.name || 'N/A'}</h2>
-        <p className="profile-dept">{internData.dept || 'N/A'}</p>
-        <span className="profile-badge">INTERN</span>
+        <p style={{color:'#FFFFFF', fontSize:'18px', fontWeight:'500', marginTop:'16px', textAlign: 'center'}}>
+          {internData.name}
+        </p>
+        <p style={{color:'rgba(255,255,255,0.75)', fontSize:'13px', textAlign: 'center'}}>
+          {internData.dept}
+        </p>
+        <span style={{
+          border: '1px solid rgba(255,255,255,0.5)',
+          color: '#FFFFFF', fontSize: '11px',
+          padding: '3px 12px', borderRadius: '4px', marginTop: '8px'
+        }}>INTERN</span>
       </div>
 
-      {/* Right Column - Details */}
-      <div className="profile-card-right">
-        <div className="profile-row">
-          <span className="profile-label">College Name</span>
-          <span className="profile-value">{internData.college_name || 'N/A'}</span>
-        </div>
-
-        <div className="profile-row">
-          <span className="profile-label">Department</span>
-          <span className="profile-value">{internData.dept || 'N/A'}</span>
-        </div>
-
-        <div className="profile-row">
-          <span className="profile-label">Year</span>
-          <span className="profile-value">{internData.year || 'N/A'}</span>
-        </div>
-
-        <div className="profile-row">
-          <span className="profile-label">Semester</span>
-          <span className="profile-value">{internData.sem || 'N/A'}</span>
-        </div>
-
-        <div className="profile-row">
-          <span className="profile-label">Email Address</span>
-          <span className="profile-value">{internData.mail || 'N/A'}</span>
-        </div>
-
-        <div className="profile-row">
-          <span className="profile-label">Phone Number</span>
-          <span className="profile-value">{internData.number || 'N/A'}</span>
-        </div>
-
-        <div className="profile-row">
-          <span className="profile-label">Starting Date</span>
-          <span className="profile-value">{formatDate(internData.starting_date)}</span>
-        </div>
-
-        <div className="profile-row">
-          <span className="profile-label">Ending Date</span>
-          <span className="profile-value">{formatDate(internData.ending_date)}</span>
-        </div>
+      {/* Right details — takes all remaining space */}
+      <div style={{
+        flex: 1,
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        alignContent: 'start'
+      }}>
+        {[
+          ['College Name', internData.college_name || internData.collegeName],
+          ['Department', internData.dept],
+          ['Year', internData.year],
+          ['Semester', internData.sem],
+          ['Email Address', internData.mail],
+          ['Phone Number', internData.number],
+          ['Starting Date', formatDate(internData.starting_date)],
+          ['Ending Date', formatDate(internData.ending_date)]
+        ].map(([label, value], i) => (
+          <div key={i} style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid #F0F0F0',
+            borderRight: i % 2 === 0 ? '1px solid #F0F0F0' : 'none'
+          }}>
+            <p style={{
+              fontSize: '11px', color: '#9E9E9E',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              marginBottom: '4px'
+            }}>{label}</p>
+            <p style={{
+              fontSize: '14px', fontWeight: '500', color: '#212121'
+            }}>{value || '—'}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

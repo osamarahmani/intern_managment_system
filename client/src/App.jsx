@@ -50,7 +50,20 @@ function App() {
               setPage('admin');
               await loadInterns();
             } else if (profile.role === 'intern') {
-              setPage('intern');
+              try {
+                const status = await authService.getInternStatus(profile.intern_id);
+                if (status === 'approved') {
+                  setPage('intern');
+                } else {
+                  console.warn(`Session check: Intern status is ${status}. Logging out.`);
+                  await authService.logout();
+                  setPage('login');
+                }
+              } catch (statusErr) {
+                console.error('Session check: Failed to check intern status. Logging out.', statusErr.message);
+                await authService.logout();
+                setPage('login');
+              }
             }
           }
         }

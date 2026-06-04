@@ -1,22 +1,9 @@
 import { useState } from 'react';
+import { formatDate } from '../../utils/formatDate';
 import PendingModal from './PendingModal';
 
 const PendingApprovals = ({ pendingInterns = [], onApprove, onReject }) => {
   const [selectedIntern, setSelectedIntern] = useState(null);
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return dateStr;
-    }
-  };
 
   // Get initials for placeholder avatar
   const getInitials = (name) => {
@@ -32,27 +19,46 @@ const PendingApprovals = ({ pendingInterns = [], onApprove, onReject }) => {
   const pendingCount = pendingInterns.length;
 
   return (
-    <div className="pending-approvals-wrapper">
+    <div style={{
+      width: '100%',
+      flex: 1,
+      background: '#FFFFFF',
+      borderRadius: '12px',
+      border: '1px solid #E0E0E0',
+      padding: '32px',
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: pendingCount === 0 ? 'center' : 'stretch',
+      justifyContent: pendingCount === 0 ? 'center' : 'flex-start'
+    }}>
       {/* Headings */}
-      <div className="pending-header-container">
-        <h2 className="pending-title">Pending Approvals</h2>
-        <p className="pending-subheading">
-          {pendingCount === 1 
-            ? '1 registration awaiting review' 
-            : `${pendingCount} registrations awaiting review`}
-        </p>
-      </div>
+      {pendingCount > 0 && (
+        <div className="pending-header-container" style={{ width: '100%', marginBottom: '24px' }}>
+          <h2 className="pending-title">Pending Approvals</h2>
+          <p className="pending-subheading">
+            {pendingCount === 1 
+              ? '1 registration awaiting review' 
+              : `${pendingCount} registrations awaiting review`}
+          </p>
+        </div>
+      )}
 
       {/* Empty State */}
       {pendingCount === 0 ? (
-        <div className="empty-approvals-state" role="status">
-          <i className="ti ti-circle-check empty-state-icon" aria-hidden="true" />
-          <h3 className="empty-state-title">All caught up!</h3>
-          <p className="empty-state-subtitle">No pending registrations at the moment</p>
-        </div>
+        <>
+          <i className="ti ti-circle-check empty-state-icon" aria-hidden="true" style={{ fontSize: '48px', color: '#03DAC6' }} />
+          <h3 className="empty-state-title" style={{ fontSize: '18px', marginTop: '16px', fontWeight: '600' }}>All caught up!</h3>
+          <p className="empty-state-subtitle" style={{ color: '#9E9E9E', fontSize: '14px', marginTop: '6px' }}>No pending registrations at the moment</p>
+        </>
       ) : (
         /* Pending Intern Card Grid */
-        <div className="pending-grid" role="list">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gap: '20px',
+          width: '100%'
+        }} role="list">
           {pendingInterns.map((intern) => (
             <div
               key={intern.id}

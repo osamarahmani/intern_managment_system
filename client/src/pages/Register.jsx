@@ -61,7 +61,23 @@ const Register = ({
       // Step 2 — wait for session to be established
       const { data: { session } } = await supabase.auth.getSession();
 
-      // Step 3 — insert intern record
+      // Upload profile photo if provided
+      let uploadedPhotoUrl = null;
+      if (formData.photo) {
+        console.log('formData.photo type:', typeof formData.photo);
+        console.log('formData.photo instanceof File:', formData.photo instanceof File);
+        console.log('formData.photo value:', formData.photo);
+        try {
+          const { uploadPhoto } = await import('../services/internService');
+          uploadedPhotoUrl = await uploadPhoto(formData.photo, authData.user.id);
+        } catch (uploadErr) {
+          console.error('Upload failed:', uploadErr);
+          alert('Photo upload failed: ' + (uploadErr.message || uploadErr));
+          throw uploadErr;
+        }
+      }
+
+      // Step 3 — insert intern record with photo_url populated
       const { data: internData, error: internError } = await supabase
         .from('interns')
         .insert({
@@ -74,31 +90,13 @@ const Register = ({
           number: formData.number,
           starting_date: formData.startingDate || new Date().toISOString().split('T')[0],
           ending_date: formData.endingDate || new Date().toISOString().split('T')[0],
-          photo_url: formData.photoUrl || null,
+          photo_url: uploadedPhotoUrl,
           status: 'pending',
           batch_number: formData.batchNumber
         })
         .select()
         .single();
       if (internError) throw internError;
-
-      // Upload profile photo if provided
-      if (formData.photo) {
-        console.log('formData.photo type:', typeof formData.photo);
-        console.log('formData.photo instanceof File:', formData.photo instanceof File);
-        console.log('formData.photo value:', formData.photo);
-        try {
-          const { uploadPhoto } = await import('../services/internService');
-          const uploadedPhotoUrl = await uploadPhoto(formData.photo, internData.id);
-          await supabase
-            .from('interns')
-            .update({ photo_url: uploadedPhotoUrl })
-            .eq('id', internData.id);
-        } catch (uploadErr) {
-          console.error('Upload failed:', uploadErr);
-          alert('Photo upload failed: ' + (uploadErr.message || uploadErr));
-        }
-      }
 
       // Step 4 — upsert profile record linking auth user to intern
       const { error: profileError } = await supabase
@@ -109,6 +107,9 @@ const Register = ({
           intern_id: internData.id
         });
       if (profileError) throw profileError;
+
+      // Automatically sign out because registration is pending admin approval
+      await supabase.auth.signOut();
 
       // 5. Successful! Set submitted true to show success page
       setSubmitted(true);
@@ -174,7 +175,7 @@ const Register = ({
       {/* Main Registration Form Card Wrapper */}
       <div className={`registration-card ${submitted ? 'success-card' : ''}`}>
         {submitted ? (
-          <SuccessScreen />
+          <SuccessScreen onBackToLogin={onBackToLogin} />
         ) : (
           <>
             {/* Stepper Tabs progress header */}

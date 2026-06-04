@@ -1,35 +1,50 @@
 import React from 'react';
 
 const InternProject = ({ project }) => {
-  // Empty State (No project assigned yet)
+  // Empty state centered in the full height
   if (!project || !project.title) {
     return (
-      <div className="intern-empty-state">
-        <i className="ti ti-folder-off intern-empty-icon" aria-hidden="true" />
-        <h2 className="intern-empty-title">No project assigned yet</h2>
-        <p className="intern-empty-subtitle">Your admin will assign a project soon</p>
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <i className="ti ti-folder-off" style={{fontSize:'48px', color:'#9E9E9E'}} />
+        <p style={{fontSize:'18px', color:'#212121', marginTop:'16px'}}>No project assigned yet</p>
+        <p style={{fontSize:'14px', color:'#9E9E9E'}}>Your admin will assign a project soon</p>
       </div>
     );
   }
 
-  // Display project details card
   return (
-    <div className="project-card">
-      <div className="project-card-header">
-        <i className="ti ti-folder" aria-hidden="true" />
-        <h2 className="project-card-title">{project.title}</h2>
+    <div style={{
+      width: '100%',
+      minHeight: 'calc(100vh - 130px)',
+      background: '#FFFFFF',
+      borderRadius: '12px',
+      border: '1px solid #E0E0E0',
+      padding: '32px',
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      <div className="project-card-header" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <i className="ti ti-folder" aria-hidden="true" style={{ fontSize: '24px', color: '#3D35C4' }} />
+        <h2 className="project-card-title" style={{ fontSize: '20px', fontWeight: '500', color: '#212121', margin: 0 }}>{project.title}</h2>
       </div>
 
-      <hr className="project-card-divider" />
+      <hr className="project-card-divider" style={{ border: 'none', borderTop: '1px solid #EEEEEE', margin: '16px 0' }} />
 
-      <div style={{ marginBottom: '24px' }}>
-        <h3 className="project-section-label">Description</h3>
-        <p className="project-section-value">{project.description || 'No description provided.'}</p>
+      <div style={{ marginBottom: '24px', flex: 1 }}>
+        <h3 className="project-section-label" style={{ fontSize: '12px', color: '#9E9E9E', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Description</h3>
+        <p className="project-section-value" style={{ fontSize: '14px', color: '#212121', lineHeight: '1.7', margin: 0 }}>{project.description || 'No description provided.'}</p>
       </div>
 
-      <hr className="project-card-divider" />
+      <hr className="project-card-divider" style={{ border: 'none', borderTop: '1px solid #EEEEEE', margin: '16px 0' }} />
 
-      <div className="project-links-row">
+      <div className="project-links-row" style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
         {project.git_repo_link ? (
           <a 
             href={project.git_repo_link} 

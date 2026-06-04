@@ -1,16 +1,8 @@
 import React from 'react';
+import { formatDate } from '../../utils/formatDate';
 
 const TaskItem = ({ task, onEdit, onDelete }) => {
   const { title, description, dueDate, submissionDate } = task;
-
-  // Format date helper: "2024-06-10" -> "Jun 10, 2024"
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'Pending';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
-  };
 
   return (
     <div className="task-item-card">

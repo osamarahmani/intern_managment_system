@@ -1,23 +1,10 @@
 import { useState } from 'react';
+import { formatDate } from '../../utils/formatDate';
 
 const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
   const [showConfirmReject, setShowConfirmReject] = useState(false);
 
   if (!intern) return null;
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return dateStr;
-    }
-  };
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return 'N/A';

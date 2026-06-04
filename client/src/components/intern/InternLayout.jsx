@@ -83,25 +83,57 @@ const InternLayout = ({ onLogout }) => {
   };
 
   return (
-    <div className="intern-layout-container">
-      {/* Sidebar Navigation */}
-      <InternSidebar
-        activePage={activePage}
-        setActivePage={setActivePage}
-        onLogout={handleLogoutClick}
-      />
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      width: '100vw',
+      overflow: 'hidden'
+    }}>
+      {/* Sidebar — fixed width */}
+      <div style={{
+        width: '220px',
+        flexShrink: 0,
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        height: '100vh',
+        background: '#3D35C4',
+        zIndex: 100
+      }}>
+        <InternSidebar
+          activePage={activePage}
+          setActivePage={setActivePage}
+          onLogout={handleLogoutClick}
+        />
+      </div>
 
-      {/* Main Content Area */}
-      <main className="intern-main-content">
-        {/* Top Header */}
+      {/* Main content — takes ALL remaining width */}
+      <div style={{
+        marginLeft: '220px',
+        flex: 1,
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        width: 'calc(100vw - 220px)',
+        overflow: 'hidden'
+      }}>
+        {/* Header */}
         <InternHeader
           activePage={activePage}
+          internData={internData}
           internName={internData?.name || ''}
           photoUrl={internData?.photo_url || ''}
         />
 
-        {/* Dynamic page view switcher */}
-        <div className="intern-page-body">
+        {/* Page content */}
+        <div style={{
+          flex: 1,
+          padding: '24px 32px',
+          boxSizing: 'border-box',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
           {loading ? (
             <div className="spinner-container">
               <div className="loading-spinner" role="status" aria-label="Loading details" />
@@ -117,13 +149,14 @@ const InternLayout = ({ onLogout }) => {
               {activePage === 'tasks' && (
                 <InternTasksPage 
                   tasks={tasks} 
+                  internId={internData?.id}
                   onUpdateTaskStatus={handleUpdateTaskStatus} 
                 />
               )}
             </>
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 };
