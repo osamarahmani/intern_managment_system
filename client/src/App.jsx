@@ -39,6 +39,27 @@ function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('basicInfo');
 
+  // Sync currentView and userRole state with the browser history
+  useEffect(() => {
+    const currentView = page;
+    const userRole = page === 'admin' ? 'admin' : (page === 'intern' ? 'intern' : 'guest');
+    const state = { userRole, currentView };
+    if (!window.history.state || window.history.state.currentView !== currentView) {
+      window.history.pushState(state, '');
+    }
+  }, [page]);
+
+  // On browser back/forward, restore state
+  useEffect(() => {
+    const handlePop = (e) => {
+      if (e.state && e.state.currentView) {
+        setPage(e.state.currentView);
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
+
   // Check active Supabase Session upon mount
   useEffect(() => {
     const checkSession = async () => {

@@ -1,3 +1,44 @@
+/* ── Base font — Roboto for all body text, inputs, tables, labels ── */
+* {
+  font-family: 'Roboto', sans-serif;
+  font-optical-sizing: auto;
+  font-variation-settings: "wdth" 100;
+}
+
+/* ── Headings and page titles — Plus Jakarta Sans ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-optical-sizing: auto;
+}
+
+/* ── Utility classes for direct use in JSX ── */
+
+/* Plus Jakarta Sans — for page titles, section headings, sidebar app name */
+.font-heading {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-optical-sizing: auto;
+}
+
+/* Roboto — for body, tables, form labels, badges */
+.font-body {
+  font-family: 'Roboto', sans-serif;
+  font-optical-sizing: auto;
+  font-variation-settings: "wdth" 100;
+}
+
+/* Doto — for numeric displays, batch keys, ID codes */
+.font-mono-display {
+  font-family: 'Doto', sans-serif;
+  font-optical-sizing: auto;
+  font-variation-settings: "ROND" 0;
+}
+
+/* Caveat — for handwritten style accents only (use sparingly) */
+.font-accent {
+  font-family: 'Caveat', cursive;
+  font-optical-sizing: auto;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }

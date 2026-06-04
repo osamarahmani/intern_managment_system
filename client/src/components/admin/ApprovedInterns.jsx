@@ -99,6 +99,194 @@ const ApprovedInterns = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [savedVisibility, setSavedVisibility] = useState({});
 
+  // Batch Summary Card States
+  const [summaryBatch, setSummaryBatch] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryStats, setSummaryStats] = useState({
+    totalInterns: 0,
+    internsWithProject: 0,
+    internsWithoutProject: 0,
+    avgDaysRemaining: 0,
+    totalTasks: 0,
+    completedTasks: 0,
+    inProgressTasks: 0,
+    notStartedTasks: 0,
+    overdueTasks: 0,
+    completionRate: 0,
+    topPerformer: null,
+    topPerformerCount: 0,
+    hasInterns: false
+  });
+
+  // Sync internal navigation with browser history
+  useEffect(() => {
+    if (!window.history.state || 
+        window.history.state.activeView !== activeView || 
+        window.history.state.selectedBatchId !== selectedBatch?.id) {
+      window.history.pushState({
+        ...window.history.state,
+        activeView,
+        selectedBatchId: selectedBatch?.id,
+        selectedBatchNumber: selectedBatch?.batch_number
+      }, '');
+    }
+  }, [activeView, selectedBatch]);
+
+  useEffect(() => {
+    const handlePop = (e) => {
+      if (e.state) {
+        if (e.state.activeView) {
+          setActiveView(e.state.activeView);
+        }
+        if (e.state.selectedBatchId) {
+          const matched = batches.find(b => b.id === e.state.selectedBatchId || b.batch_number === e.state.selectedBatchNumber);
+          if (matched) {
+            setSelectedBatch(matched);
+          } else {
+            setSelectedBatch(null);
+          }
+        } else {
+          setSelectedBatch(null);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [batches]);
+
+  // Load latest batch stats on page load
+  useEffect(() => {
+    if (batches.length > 0 && !summaryBatch) {
+      setSummaryBatch(batches[0]);
+    }
+  }, [batches]);
+
+  const fetchBatchSummary = async (batchNum) => {
+    setSummaryLoading(true);
+    try {
+      // 1. Fetch interns in batch
+      const { data: batchInterns, error: internErr } = await supabase
+        .from('interns')
+        .select('id, name, photo_url, starting_date, ending_date')
+        .eq('batch_number', batchNum)
+        .eq('status', 'approved');
+      
+      if (internErr) throw internErr;
+
+      const safeInterns = batchInterns || [];
+      const internIds = safeInterns.map(i => i.id);
+
+      if (internIds.length === 0) {
+        setSummaryStats({
+          totalInterns: 0,
+          internsWithProject: 0,
+          internsWithoutProject: 0,
+          avgDaysRemaining: 0,
+          totalTasks: 0,
+          completedTasks: 0,
+          inProgressTasks: 0,
+          notStartedTasks: 0,
+          overdueTasks: 0,
+          completionRate: 0,
+          topPerformer: null,
+          topPerformerCount: 0,
+          hasInterns: false
+        });
+        return;
+      }
+
+      // 2. Fetch tasks for those interns
+      const { data: batchTasks, error: taskErr } = await supabase
+        .from('tasks')
+        .select('id, intern_id, status, expected_date, submission_date')
+        .in('intern_id', internIds);
+
+      if (taskErr) throw taskErr;
+
+      // 3. Fetch projects for those interns
+      const { data: batchProjects, error: projErr } = await supabase
+        .from('projects')
+        .select('id, intern_id')
+        .in('intern_id', internIds);
+
+      if (projErr) throw projErr;
+
+      const safeTasks = batchTasks || [];
+      const safeProjects = batchProjects || [];
+
+      // Computed Stats
+      const today = new Date().toISOString().split('T')[0];
+
+      // Intern stats
+      const totalInterns = safeInterns.length;
+      const internsWithProject = safeProjects.length;
+      const internsWithoutProject = totalInterns - internsWithProject;
+      const avgDaysRemaining = totalInterns > 0
+        ? Math.round(
+            safeInterns.reduce((sum, i) => {
+              const endingDateStr = i.ending_date || i.endingDate;
+              const endingDate = endingDateStr ? new Date(endingDateStr) : null;
+              const diff = (endingDate && !isNaN(endingDate.getTime()))
+                ? Math.max(0, Math.ceil((endingDate - new Date()) / (1000 * 60 * 60 * 24)))
+                : 0;
+              return sum + diff;
+            }, 0) / totalInterns
+          )
+        : 0;
+
+      // Task stats
+      const totalTasks = safeTasks.length;
+      const completedTasks = safeTasks.filter(t => t.status === 'completed').length;
+      const inProgressTasks = safeTasks.filter(t => t.status === 'in_progress').length;
+      const notStartedTasks = safeTasks.filter(t => t.status === 'not_started').length;
+      const overdueTasks = safeTasks.filter(t =>
+        t.status !== 'completed' && t.expected_date && t.expected_date < today
+      ).length;
+      const completionRate = totalTasks > 0
+        ? Math.round((completedTasks / totalTasks) * 100)
+        : 0;
+
+      // Top performer
+      const completedByIntern = {};
+      safeTasks
+        .filter(t => t.status === 'completed')
+        .forEach(t => {
+          completedByIntern[t.intern_id] = (completedByIntern[t.intern_id] || 0) + 1;
+        });
+      const topInternId = Object.entries(completedByIntern)
+        .sort((a, b) => b[1] - a[1])[0]?.[0];
+      const topPerformer = safeInterns.find(i => i.id === topInternId);
+      const topPerformerCount = completedByIntern[topInternId] || 0;
+
+      setSummaryStats({
+        totalInterns,
+        internsWithProject,
+        internsWithoutProject,
+        avgDaysRemaining,
+        totalTasks,
+        completedTasks,
+        inProgressTasks,
+        notStartedTasks,
+        overdueTasks,
+        completionRate,
+        topPerformer,
+        topPerformerCount,
+        hasInterns: true
+      });
+
+    } catch (err) {
+      console.error('Error fetching batch summary:', err.message);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (summaryBatch) {
+      fetchBatchSummary(summaryBatch.batch_number);
+    }
+  }, [summaryBatch]);
+
   // Helper Resets
   const resetProjectForm = () => {
     setProjectTitle('');
@@ -481,8 +669,10 @@ const ApprovedInterns = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px', alignItems: 'start' }}>
 
-            {/* Create Batch Form Panel */}
-            <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+            {/* Left Column: Provision New Batch & Batch Summary Card */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Create Batch Form Panel */}
+              <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Provision New Batch</h3>
 
               {successMsg && <div style={{ background: '#E6F4EA', color: '#137333', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{successMsg}</div>}
@@ -592,6 +782,309 @@ const ApprovedInterns = () => {
                   Generate Batch
                 </button>
               </form>
+              </div>
+
+              {/* Batch Summary Card */}
+              <div style={{
+                background: '#fff',
+                borderRadius: '12px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                padding: '20px',
+                marginTop: '16px',
+                border: '1px solid #E0E0E0'
+              }}>
+                <h3 style={{
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: '#212121',
+                  marginBottom: '20px',
+                  marginTop: 0
+                }}>
+                  📊 Batch Summary — {summaryBatch ? summaryBatch.batch_number : 'None'}
+                </h3>
+
+                {summaryLoading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ background: '#F5F5F5', borderRadius: '10px', height: '60px' }} />
+                    <div style={{ background: '#F5F5F5', borderRadius: '10px', height: '60px' }} />
+                    <div style={{ background: '#F5F5F5', borderRadius: '10px', height: '60px' }} />
+                    <div style={{ background: '#F5F5F5', borderRadius: '10px', height: '60px' }} />
+                  </div>
+                ) : !summaryBatch ? (
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    minHeight: '120px',
+                    fontFamily: "'Roboto', sans-serif",
+                    color: '#9E9E9E',
+                    textAlign: 'center'
+                  }}>
+                    No batch selected.
+                  </div>
+                ) : !summaryStats.hasInterns ? (
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    minHeight: '120px',
+                    fontFamily: "'Roboto', sans-serif",
+                    color: '#9E9E9E',
+                    textAlign: 'center'
+                  }}>
+                    No approved interns in this batch yet.
+                  </div>
+                ) : (
+                  <div>
+                    {/* Section 1 — Intern Stats */}
+                    <span style={{
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#9E9E9E',
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      marginBottom: '10px',
+                      display: 'block'
+                    }}>
+                      INTERNS
+                    </span>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                      <div style={{ background: '#F3F0FF', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '24px', fontWeight: 700, color: '#3D35C4', lineHeight: 1 }}>
+                          {summaryStats.totalInterns}
+                        </div>
+                        <div style={{ fontFamily: "'Roboto', sans-serif", fontSize: '10px', fontWeight: 600, color: '#9E9E9E', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                          Total Interns
+                        </div>
+                      </div>
+                      <div style={{ background: '#E8F5E9', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '24px', fontWeight: 700, color: '#2E7D32', lineHeight: 1 }}>
+                          {summaryStats.internsWithProject}
+                        </div>
+                        <div style={{ fontFamily: "'Roboto', sans-serif", fontSize: '10px', fontWeight: 600, color: '#9E9E9E', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                          With Project
+                        </div>
+                      </div>
+                      <div style={{ background: '#FFF3E0', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '24px', fontWeight: 700, color: '#E65100', lineHeight: 1 }}>
+                          {summaryStats.internsWithoutProject}
+                        </div>
+                        <div style={{ fontFamily: "'Roboto', sans-serif", fontSize: '10px', fontWeight: 600, color: '#9E9E9E', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                          No Project Yet
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: '#F0EEFF',
+                      borderRadius: '10px',
+                      padding: '12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: '10px'
+                    }}>
+                      <span style={{ fontFamily: "'Roboto', sans-serif", fontSize: '13px', fontWeight: 600, color: '#3D35C4' }}>
+                        Avg Days Remaining
+                      </span>
+                      <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '20px', fontWeight: 700, color: '#3D35C4' }}>
+                        {summaryStats.avgDaysRemaining} days
+                      </span>
+                    </div>
+
+                    {/* Section 2 — Task Stats */}
+                    <span style={{
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#9E9E9E',
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      marginTop: '16px',
+                      marginBottom: '10px',
+                      display: 'block'
+                    }}>
+                      TASKS
+                    </span>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ background: '#F3F0FF', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '24px', fontWeight: 700, color: '#3D35C4', lineHeight: 1 }}>
+                          {summaryStats.totalTasks}
+                        </div>
+                        <div style={{ fontFamily: "'Roboto', sans-serif", fontSize: '10px', fontWeight: 600, color: '#9E9E9E', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                          Total Tasks
+                        </div>
+                      </div>
+                      <div style={{ background: '#E8F5E9', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '24px', fontWeight: 700, color: '#2E7D32', lineHeight: 1 }}>
+                          {summaryStats.completedTasks}
+                        </div>
+                        <div style={{ fontFamily: "'Roboto', sans-serif", fontSize: '10px', fontWeight: 600, color: '#9E9E9E', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                          Completed
+                        </div>
+                      </div>
+                      <div style={{ background: '#E3F2FD', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '24px', fontWeight: 700, color: '#1565C0', lineHeight: 1 }}>
+                          {summaryStats.inProgressTasks}
+                        </div>
+                        <div style={{ fontFamily: "'Roboto', sans-serif", fontSize: '10px', fontWeight: 600, color: '#9E9E9E', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                          In Progress
+                        </div>
+                      </div>
+                      <div style={{ background: '#FFF8E1', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '24px', fontWeight: 700, color: '#F9A825', lineHeight: 1 }}>
+                          {summaryStats.notStartedTasks}
+                        </div>
+                        <div style={{ fontFamily: "'Roboto', sans-serif", fontSize: '10px', fontWeight: 600, color: '#9E9E9E', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                          Not Started
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: summaryStats.overdueTasks > 0 ? '#FFEBEE' : '#F5F5F5',
+                      borderRadius: '10px',
+                      padding: '12px',
+                      marginTop: '10px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <span style={{
+                        fontFamily: "'Roboto', sans-serif",
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: summaryStats.overdueTasks > 0 ? '#B00020' : '#9E9E9E'
+                      }}>
+                        ⚠️ Overdue Tasks
+                      </span>
+                      <span style={{
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        fontSize: '20px',
+                        fontWeight: 700,
+                        color: summaryStats.overdueTasks > 0 ? '#B00020' : '#9E9E9E'
+                      }}>
+                        {summaryStats.overdueTasks}
+                      </span>
+                    </div>
+
+                    {/* Section 3 — Completion Rate */}
+                    <span style={{
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#9E9E9E',
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      marginTop: '16px',
+                      marginBottom: '10px',
+                      display: 'block'
+                    }}>
+                      COMPLETION RATE
+                    </span>
+
+                    <div style={{ background: '#F9F9F9', borderRadius: '10px', padding: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontFamily: "'Roboto', sans-serif", fontSize: '13px', fontWeight: 600, color: '#212121' }}>
+                          Overall Progress
+                        </span>
+                        <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '18px', fontWeight: 700, color: '#3D35C4' }}>
+                          {summaryStats.completionRate}%
+                        </span>
+                      </div>
+                      <div style={{ height: '8px', borderRadius: '4px', background: '#E0E0E0', marginTop: '10px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${summaryStats.completionRate}%`,
+                          background: summaryStats.completionRate >= 75 ? '#2E7D32' : (summaryStats.completionRate >= 40 ? '#3D35C4' : '#E65100'),
+                          borderRadius: '4px',
+                          height: '8px',
+                          transition: 'width 0.4s ease'
+                        }} />
+                      </div>
+                    </div>
+
+                    {/* Section 4 — Top Performer */}
+                    <span style={{
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#9E9E9E',
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      marginTop: '16px',
+                      marginBottom: '10px',
+                      display: 'block'
+                    }}>
+                      TOP PERFORMER
+                    </span>
+
+                    {!summaryStats.topPerformer ? (
+                      <div style={{
+                        fontFamily: "'Roboto', sans-serif",
+                        color: '#9E9E9E',
+                        fontSize: '13px',
+                        textAlign: 'center',
+                        padding: '12px'
+                      }}>
+                        No completed tasks yet.
+                      </div>
+                    ) : (
+                      <div style={{
+                        background: 'linear-gradient(135deg, #F3F0FF 0%, #E8E6FF 100%)',
+                        borderRadius: '10px',
+                        padding: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px'
+                      }}>
+                        {summaryStats.topPerformer.photo_url ? (
+                          <img
+                            src={summaryStats.topPerformer.photo_url}
+                            alt={summaryStats.topPerformer.name}
+                            style={{
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              flexShrink: 0
+                            }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '50%',
+                            background: '#3D35C4',
+                            color: '#fff',
+                            fontSize: '16px',
+                            fontWeight: '700',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            {summaryStats.topPerformer.name
+                              ? summaryStats.topPerformer.name.split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                              : 'IN'}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#3D35C4' }}>
+                            {summaryStats.topPerformer.name}
+                          </span>
+                          <span style={{ fontFamily: "'Roboto', sans-serif", fontSize: '12px', color: '#757575', marginTop: '2px' }}>
+                            {summaryStats.topPerformerCount} tasks completed
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Existing Batches List Panel */}
@@ -602,239 +1095,258 @@ const ApprovedInterns = () => {
                 <p style={{ color: '#9E9E9E', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No batches provisioned yet.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {batches.map((batch) => (
-                    <div
-                      key={batch.id}
-                      style={{
-                        padding: '16px 20px',
-                        border: '1px solid #EEEEEE',
-                        borderRadius: '10px',
-                        background: '#FAFAFA',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '12px'
-                      }}
-                    >
-                      {/* Top row — batch name + toggle only */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px'
-                      }}>
-                        {/* Batch name — large, clickable */}
-                        <span
-                          onClick={() => {
-                            setSelectedBatch(batch);
-                            setActiveView('batchDetails');
-                          }}
-                          style={{
-                            fontSize: '20px',
-                            fontWeight: '700',
-                            color: '#3D35C4',
-                            cursor: 'pointer',
-                            textDecoration: 'underline',
-                            flex: 1
-                          }}
-                        >
-                          {batch.batch_number}
-                        </span>
-
-                        {/* Toggle + label */}
+                  {batches.map((batch) => {
+                    const isSelected = summaryBatch && summaryBatch.id === batch.id;
+                    return (
+                      <div
+                        key={batch.id}
+                        onClick={() => setSummaryBatch(batch)}
+                        style={{
+                          padding: isSelected ? '15px 19px' : '16px 20px',
+                          border: isSelected ? '2px solid #3D35C4' : '1px solid #EEEEEE',
+                          borderRadius: '10px',
+                          background: '#FAFAFA',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {/* Top row — batch name + toggle only */}
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '10px',
-                          flexShrink: 0
+                          gap: '12px'
                         }}>
-                          <div
-                            onClick={() => handleToggleBatchStatus(batch)}
-                            style={{
-                              width: '48px',
-                              height: '26px',
-                              borderRadius: '13px',
-                              background: batch.is_active ? '#3D35C4' : '#E0E0E0',
-                              position: 'relative',
-                              cursor: 'pointer',
-                              transition: 'background 0.25s ease',
-                              flexShrink: 0
+                          {/* Batch name — large, clickable */}
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedBatch(batch);
+                              setActiveView('batchDetails');
                             }}
-                            title={batch.is_active ? 'Click to deactivate' : 'Click to activate'}
-                          >
-                            <div style={{
-                              position: 'absolute',
-                              top: '3px',
-                              left: batch.is_active ? '25px' : '3px',
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              background: '#FFFFFF',
-                              transition: 'left 0.25s ease',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                            }} />
-                          </div>
-                          <span style={{
-                            fontSize: '13px',
-                            fontWeight: '500',
-                            color: batch.is_active ? '#3D35C4' : '#9E9E9E',
-                            minWidth: '52px'
-                          }}>
-                            {batch.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Visibility Control Row */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        flexWrap: 'wrap',
-                        borderTop: '1px solid #EEEEEE',
-                        paddingTop: '12px',
-                        marginTop: '4px'
-                      }}>
-                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#000000ff' }}>
-                          Profiles Visibility:
-                        </span>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          {[
-                            { mode: 'public', label: 'Public' },
-                            { mode: 'private', label: 'Private' },
-                            { mode: 'intern_choice', label: "Intern's Choice" }
-                          ].map(({ mode, label }) => {
-                            const isActive = (batch.visibility_mode || 'intern_choice') === mode;
-                            return (
-                              <button
-                                key={mode}
-                                type="button"
-                                onClick={() => handleUpdateVisibilityMode(batch.id, mode)}
-                                style={{
-                                  background: isActive ? '#3D35C4' : '#F5F5F5',
-                                  color: isActive ? '#FFFFFF' : '#616161',
-                                  border: 'none',
-                                  borderRadius: '8px',
-                                  padding: '6px 14px',
-                                  fontSize: '12px',
-                                  fontWeight: isActive ? '600' : '400',
-                                  cursor: 'pointer',
-                                  transition: 'background 0.2s, color 0.2s'
-                                }}
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {savedVisibility[batch.id] && (
-                          <span style={{
-                            color: '#3D35C4',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            marginLeft: '4px'
-                          }}>
-                            ✓ Saved
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Bottom row — Show Key button */}
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setVisibleKeyBatchId(
-                            visibleKeyBatchId === batch.id ? null : batch.id
-                          )}
-                          style={{
-                            background: 'none',
-                            border: '1px solid #E0E0E0',
-                            borderRadius: '6px',
-                            padding: '5px 12px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            color: '#757575',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                          }}
-                        >
-                          <i className="ti ti-eye" style={{ fontSize: '14px' }} />
-                          {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
-                        </button>
-
-                        {/* Key reveal card */}
-                        {visibleKeyBatchId === batch.id && (
-                          <div style={{
-                            marginTop: '10px',
-                            background: '#F8F7FF',
-                            border: '1px solid #3D35C4',
-                            borderRadius: '8px',
-                            padding: '12px 16px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px'
-                          }}>
-                            <i className="ti ti-key" style={{ color: '#3D35C4', fontSize: '16px', flexShrink: 0 }} />
-
-                            {/* Key text */}
-                            <span style={{
-                              flex: 1,
-                              fontFamily: 'monospace',
-                              fontSize: '13px',
+                            style={{
+                              fontSize: '20px',
+                              fontWeight: '700',
                               color: '#3D35C4',
-                              fontWeight: '600',
-                              letterSpacing: '0.05em',
-                              wordBreak: 'break-all'
-                            }}>
-                              {batch.registration_key}
-                            </span>
+                              cursor: 'pointer',
+                              textDecoration: 'underline',
+                              flex: 1
+                            }}
+                          >
+                            {batch.batch_number}
+                          </span>
 
-                            {/* Copy button */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(batch.registration_key);
-                                setCopiedBatchId(batch.id);
-                                setTimeout(() => setCopiedBatchId(null), 2000);
+                          {/* Toggle + label */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            flexShrink: 0
+                          }}>
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleBatchStatus(batch);
                               }}
                               style={{
-                                background: copiedBatchId === batch.id ? '#03DAC6' : '#3D35C4',
-                                color: copiedBatchId === batch.id ? '#000000' : '#FFFFFF',
-                                border: 'none',
-                                borderRadius: '6px',
-                                padding: '5px 12px',
-                                fontSize: '12px',
-                                fontWeight: '600',
+                                width: '48px',
+                                height: '26px',
+                                borderRadius: '13px',
+                                background: batch.is_active ? '#3D35C4' : '#E0E0E0',
+                                position: 'relative',
                                 cursor: 'pointer',
-                                flexShrink: 0,
-                                transition: 'background 0.2s'
-                              }}
-                            >
-                              {copiedBatchId === batch.id ? '✓ Copied' : 'Copy'}
-                            </button>
-
-                            {/* Close button */}
-                            <button
-                              type="button"
-                              onClick={() => setVisibleKeyBatchId(null)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: '#9E9E9E',
-                                fontSize: '18px',
-                                lineHeight: 1,
-                                padding: '0 4px',
+                                transition: 'background 0.25s ease',
                                 flexShrink: 0
                               }}
+                              title={batch.is_active ? 'Click to deactivate' : 'Click to activate'}
                             >
-                              ×
-                            </button>
+                              <div style={{
+                                position: 'absolute',
+                                top: '3px',
+                                left: batch.is_active ? '25px' : '3px',
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                background: '#FFFFFF',
+                                transition: 'left 0.25s ease',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                              }} />
+                            </div>
+                            <span style={{
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              color: batch.is_active ? '#3D35C4' : '#9E9E9E',
+                              minWidth: '52px'
+                            }}>
+                              {batch.is_active ? 'Active' : 'Inactive'}
+                            </span>
                           </div>
-                        )}
+                        </div>
+
+                        {/* Visibility Control Row */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          flexWrap: 'wrap',
+                          borderTop: '1px solid #EEEEEE',
+                          paddingTop: '12px',
+                          marginTop: '4px'
+                        }}>
+                          <span style={{ fontSize: '12px', fontWeight: '600', color: '#000000ff' }}>
+                            Profiles Visibility:
+                          </span>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {[
+                              { mode: 'public', label: 'Public' },
+                              { mode: 'private', label: 'Private' },
+                              { mode: 'intern_choice', label: "Intern's Choice" }
+                            ].map(({ mode, label }) => {
+                              const isActive = (batch.visibility_mode || 'intern_choice') === mode;
+                              return (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateVisibilityMode(batch.id, mode);
+                                  }}
+                                  style={{
+                                    background: isActive ? '#3D35C4' : '#F5F5F5',
+                                    color: isActive ? '#FFFFFF' : '#616161',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    padding: '6px 14px',
+                                    fontSize: '12px',
+                                    fontWeight: isActive ? '600' : '400',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.2s, color 0.2s'
+                                  }}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {savedVisibility[batch.id] && (
+                            <span style={{
+                              color: '#3D35C4',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              marginLeft: '4px'
+                            }}>
+                              ✓ Saved
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Bottom row — Show Key button */}
+                        <div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVisibleKeyBatchId(
+                                visibleKeyBatchId === batch.id ? null : batch.id
+                              );
+                            }}
+                            style={{
+                              background: 'none',
+                              border: '1px solid #E0E0E0',
+                              borderRadius: '6px',
+                              padding: '5px 12px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              color: '#757575',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <i className="ti ti-eye" style={{ fontSize: '14px' }} />
+                            {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
+                          </button>
+
+                          {/* Key reveal card */}
+                          {visibleKeyBatchId === batch.id && (
+                            <div style={{
+                              marginTop: '10px',
+                              background: '#F8F7FF',
+                              border: '1px solid #3D35C4',
+                              borderRadius: '8px',
+                              padding: '12px 16px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px'
+                            }}>
+                              <i className="ti ti-key" style={{ color: '#3D35C4', fontSize: '16px', flexShrink: 0 }} />
+
+                              {/* Key text */}
+                              <span style={{
+                                flex: 1,
+                                fontFamily: 'monospace',
+                                fontSize: '13px',
+                                color: '#3D35C4',
+                                fontWeight: '600',
+                                letterSpacing: '0.05em',
+                                wordBreak: 'break-all'
+                              }}>
+                                {batch.registration_key}
+                              </span>
+
+                              {/* Copy button */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(batch.registration_key);
+                                  setCopiedBatchId(batch.id);
+                                  setTimeout(() => setCopiedBatchId(null), 2000);
+                                }}
+                                style={{
+                                  background: copiedBatchId === batch.id ? '#03DAC6' : '#3D35C4',
+                                  color: copiedBatchId === batch.id ? '#000000' : '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '5px 12px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                  transition: 'background 0.2s'
+                                }}
+                              >
+                                {copiedBatchId === batch.id ? '✓ Copied' : 'Copy'}
+                              </button>
+
+                              {/* Close button */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setVisibleKeyBatchId(null);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  color: '#9E9E9E',
+                                  fontSize: '18px',
+                                  lineHeight: 1,
+                                  padding: '0 4px',
+                                  flexShrink: 0
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

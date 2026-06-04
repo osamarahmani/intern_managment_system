@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../../../utils/formatDate';
-import InternHeader from '../InternHeader';
 
 const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
   const [loading, setLoading] = useState(true);
@@ -204,19 +203,14 @@ const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100vh' }}>
-      {/* Page Header */}
-      <InternHeader activePage="directory" internName={internName} photoUrl={avatarUrl} />
-
-      {/* Outer split panel container */}
-      <div style={{
-        display: 'flex',
-        gap: '16px',
-        padding: '24px',
-        height: 'calc(100vh - 64px)',
-        boxSizing: 'border-box',
-        width: '100%'
-      }}>
+    <div style={{
+      display: 'flex',
+      gap: '16px',
+      padding: '24px',
+      boxSizing: 'border-box',
+      width: '100%',
+      minHeight: '100%'
+    }}>
         {/* Left Panel: Sidebar Teammates List */}
         <div style={{
           width: '260px',
@@ -892,7 +886,6 @@ const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
           )}
         </div>
       </div>
-    </div>
   );
 };
 
