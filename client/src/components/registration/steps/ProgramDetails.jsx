@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 
 const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
   const [localErrors, setLocalErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
+  const updateFormData = onUpdate;
 
   const handleFieldChange = (field, value) => {
     onUpdate({ [field]: value });
@@ -14,8 +19,8 @@ const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
     }
   };
 
-  const handleNextClick = (e) => {
-    e.preventDefault();
+  const handleNext = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
     const errors = {};
 
     if (!formData.startingDate) {
@@ -36,18 +41,32 @@ const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
       errors.registrationKey = 'Registration Key is required.';
     }
 
-    if (!formData.password) {
-      errors.password = 'Password is required.';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters.';
-    }
-
     if (Object.keys(errors).length > 0) {
       setLocalErrors(errors);
-    } else {
-      onNext();
+      if (!formData.password || formData.password.length < 6) {
+        setPasswordError('Password must be at least 6 characters.');
+      } else if (formData.password !== formData.confirmPassword) {
+        setPasswordError('Passwords do not match.');
+      } else {
+        setPasswordError('');
+      }
+      return;
     }
+
+    setLocalErrors({});
+
+    if (!formData.password || formData.password.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+    setPasswordError('');
+    onNext();
   };
+
 
   return (
     <form className="auth-form" noValidate>
@@ -104,7 +123,7 @@ const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
           <input
             type="text"
             id="reg-batchNumber"
-            placeholder="e.g. BATCH-24-SUMMER"
+            placeholder="BATCH NUMBER"
             className={`form-input ${localErrors.batchNumber ? 'input-error' : ''}`}
             value={formData.batchNumber || ''}
             onChange={(e) => handleFieldChange('batchNumber', e.target.value)}
@@ -125,7 +144,7 @@ const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
           <input
             type="text"
             id="reg-registrationKey"
-            placeholder="e.g. key_902"
+            placeholder="REGISTRATION KEY"
             className={`form-input ${localErrors.registrationKey ? 'input-error' : ''}`}
             value={formData.registrationKey || ''}
             onChange={(e) => handleFieldChange('registrationKey', e.target.value)}
@@ -140,24 +159,109 @@ const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
       </div>
 
       {/* Password Row */}
-      <div className="input-group" style={{ marginTop: '16px', marginBottom: '20px' }}>
-        <label htmlFor="reg-password" className="form-label">
-          Password <span className="required-asterisk">*</span>
-        </label>
-        <input
-          type="password"
-          id="reg-password"
-          placeholder="Set Login Password (Min. 6 chars)"
-          className={`form-input ${localErrors.password ? 'input-error' : ''}`}
-          value={formData.password || ''}
-          onChange={(e) => handleFieldChange('password', e.target.value)}
-          required
-        />
-        {localErrors.password && (
-          <span className="error-message" role="alert">
-            {localErrors.password}
-          </span>
-        )}
+      <div className="grid-2-col" style={{ marginTop: '16px', marginBottom: '20px' }}>
+        {/* Create Password */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ fontSize: '13px', fontWeight: '500', color: '#212121' }}>
+            Create Password <span style={{ color: '#B00020' }}>*</span>
+          </label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Min. 6 characters"
+              value={formData.password || ''}
+              onChange={(e) => updateFormData({ password: e.target.value })}
+              required
+              style={{
+                width: '100%',
+                height: '44px',
+                padding: '0 44px 0 14px',
+                border: '1px solid #E0E0E0',
+                borderRadius: '8px',
+                fontSize: '14px',
+                boxSizing: 'border-box',
+                outline: 'none'
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(prev => !prev)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#9E9E9E',
+                fontSize: '16px',
+                padding: 0
+              }}
+            >
+              <i className={showPassword ? 'ti ti-eye-off' : 'ti ti-eye'} />
+            </button>
+          </div>
+        </div>
+
+        {/* Confirm Password */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ fontSize: '13px', fontWeight: '500', color: '#212121' }}>
+            Confirm Password <span style={{ color: '#B00020' }}>*</span>
+          </label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showConfirmPassword ? 'text' : 'password'}
+              placeholder="Re-enter your password"
+              value={formData.confirmPassword || ''}
+              onChange={(e) => {
+                updateFormData({ confirmPassword: e.target.value })
+                setPasswordError('')
+              }}
+              required
+              style={{
+                width: '100%',
+                height: '44px',
+                padding: '0 44px 0 14px',
+                border: `1px solid ${passwordError ? '#B00020' : '#E0E0E0'}`,
+                borderRadius: '8px',
+                fontSize: '14px',
+                boxSizing: 'border-box',
+                outline: 'none'
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(prev => !prev)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#9E9E9E',
+                fontSize: '16px',
+                padding: 0
+              }}
+            >
+              <i className={showConfirmPassword ? 'ti ti-eye-off' : 'ti ti-eye'} />
+            </button>
+          </div>
+          {/* Error message */}
+          {passwordError && (
+            <span style={{ fontSize: '12px', color: '#B00020' }}>
+              {passwordError}
+            </span>
+          )}
+          {/* Match success message */}
+          {formData.confirmPassword && !passwordError && formData.password === formData.confirmPassword && (
+            <span style={{ fontSize: '12px', color: '#2E7D32' }}>
+              ✓ Passwords match
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Footer Navigation Buttons */}
@@ -173,7 +277,7 @@ const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
         <button
           type="button"
           className="primary-submit-btn reg-next-btn"
-          onClick={handleNextClick}
+          onClick={handleNext}
           aria-label="Proceed to Review and Submit step"
         >
           Next

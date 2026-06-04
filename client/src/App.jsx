@@ -29,7 +29,8 @@ function App() {
     endingDate: '',
     batchNumber: '',
     registrationKey: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   });
 
   // Admin Dashboard States
@@ -286,7 +287,8 @@ function App() {
         endingDate: '',
         batchNumber: '',
         registrationKey: '',
-        password: ''
+        password: '',
+        confirmPassword: ''
       });
       setPage('register');
     } else {

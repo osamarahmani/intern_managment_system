@@ -75,6 +75,8 @@ const ApprovedInterns = () => {
   // Provision Batch Form States
   const [batchNumber, setBatchNumber] = useState('');
   const [registrationKey, setRegistrationKey] = useState('');
+  const [visibleKeyBatchId, setVisibleKeyBatchId] = useState(null);
+  const [copiedBatchId, setCopiedBatchId] = useState(null);
 
   // Assign Project Form States
   const [projectTitle, setProjectTitle] = useState('');
@@ -254,7 +256,7 @@ const ApprovedInterns = () => {
         .eq('intern_id', internId);
       if (projError) throw projError;
       setProjects(projData || []);
-      
+
       // Prefill project form states reactively
       if (projData && projData.length > 0) {
         setProjectTitle(projData[0].title || '');
@@ -276,6 +278,25 @@ const ApprovedInterns = () => {
     } catch (err) {
       console.error('Error fetching intern assignments:', err.message);
     }
+  };
+
+  const handleGenerateKey = () => {
+    if (!batchNumber.trim()) return;
+
+    const today = new Date();
+    const dateStr = today.getFullYear().toString() +
+      String(today.getMonth() + 1).padStart(2, '0') +
+      String(today.getDate()).padStart(2, '0');
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let randomStr = '';
+    for (let i = 0; i < 6; i++) {
+      randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const batchCode = batchNumber.trim().toUpperCase().replace(/\s+/g, '');
+    const key = `${dateStr}-${randomStr}-${batchCode}`;
+    setRegistrationKey(key);
   };
 
   // ==========================================================================
@@ -399,7 +420,9 @@ const ApprovedInterns = () => {
   };
 
   const handleDeleteTask = async (taskId) => {
+    console.log('Delete task called with id:', taskId);
     if (!window.confirm('Are you sure you want to delete this task?')) return;
+    console.log('Confirmed delete for:', taskId);
     try {
       const { error } = await supabase
         .from('tasks')
@@ -423,7 +446,7 @@ const ApprovedInterns = () => {
       flex: 1,
       boxSizing: 'border-box'
     }}>
-      
+
       {/* ==========================================================================
           VIEW 1: BATCH OPERATIONS DASHBOARD (DEFAULT VIEW)
           ========================================================================== */}
@@ -435,42 +458,114 @@ const ApprovedInterns = () => {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px', alignItems: 'start' }}>
-            
+
             {/* Create Batch Form Panel */}
             <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Provision New Batch</h3>
-              
+
               {successMsg && <div style={{ background: '#E6F4EA', color: '#137333', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{successMsg}</div>}
               {errorMsg && <div style={{ background: '#FCE8E6', color: '#C5221F', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{errorMsg}</div>}
 
               <form onSubmit={handleCreateBatch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Batch Identifier / Number</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. BATCH-2024-SUMMER"
-                    value={batchNumber}
-                    onChange={(e) => setBatchNumber(e.target.value)}
-                    required
-                    style={{ height: '38px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '14px' }}
-                  />
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>
+                    Batch Number
+                  </label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="text"
+                      placeholder="BATCH NUMBER"
+                      value={batchNumber}
+                      onChange={(e) => {
+                        setBatchNumber(e.target.value);
+                        setRegistrationKey(''); // reset key if batch name changes
+                      }}
+                      required
+                      style={{
+                        flex: 1,
+                        height: '40px',
+                        padding: '0 12px',
+                        border: '1px solid #E0E0E0',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateKey}
+                      disabled={!batchNumber.trim()}
+                      style={{
+                        height: '40px',
+                        padding: '0 16px',
+                        background: batchNumber.trim() ? '#03DAC6' : '#F5F5F5',
+                        color: batchNumber.trim() ? '#000000' : '#BDBDBD',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        fontSize: '13px',
+                        cursor: batchNumber.trim() ? 'pointer' : 'not-allowed',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
+                      }}
+                    >
+                      Generate Key
+                    </button>
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Registration Key</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. key_sum_902"
-                    value={registrationKey}
-                    onChange={(e) => setRegistrationKey(e.target.value)}
-                    required
-                    style={{ height: '38px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '14px' }}
-                  />
-                </div>
+                {registrationKey && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    background: '#F8F7FF',
+                    border: '1px solid #3D35C4',
+                    borderRadius: '8px',
+                    padding: '10px 14px'
+                  }}>
+                    <i className="ti ti-key" style={{ color: '#3D35C4', fontSize: '16px' }} />
+                    <span style={{
+                      flex: 1,
+                      fontFamily: 'monospace',
+                      fontSize: '13px',
+                      color: '#3D35C4',
+                      fontWeight: '600',
+                      letterSpacing: '0.05em'
+                    }}>
+                      {registrationKey}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(registrationKey)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#3D35C4',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        padding: '4px 8px'
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                )}
 
                 <button
                   type="submit"
-                  style={{ height: '40px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}
+                  disabled={!batchNumber.trim() || !registrationKey}
+                  style={{
+                    height: '40px',
+                    background: (batchNumber.trim() && registrationKey) ? '#3D35C4' : '#F5F5F5',
+                    color: (batchNumber.trim() && registrationKey) ? '#FFFFFF' : '#BDBDBD',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: (batchNumber.trim() && registrationKey) ? 'pointer' : 'not-allowed'
+                  }}
                 >
                   Generate Batch
                 </button>
@@ -489,48 +584,179 @@ const ApprovedInterns = () => {
                     <div
                       key={batch.id}
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '14px 16px',
+                        padding: '16px 20px',
                         border: '1px solid #EEEEEE',
-                        borderRadius: '8px',
-                        background: '#FAFAFA'
+                        borderRadius: '10px',
+                        background: '#FAFAFA',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px'
                       }}
                     >
-                      <div
-                        onClick={() => {
-                          setSelectedBatch(batch);
-                          setActiveView('batchDetails');
-                        }}
-                        style={{ cursor: 'pointer', flex: 1 }}
-                        title="Click to view batch details and approved interns list"
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontWeight: '700', fontSize: '14px', color: '#3D35C4', textDecoration: 'underline' }}>{batch.batch_number}</span>
-                          <span style={{ fontSize: '11px', background: batch.is_active ? '#E6F4EA' : '#F1F3F4', color: batch.is_active ? '#137333' : '#5F6368', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                      {/* Top row — batch name + toggle only */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px'
+                      }}>
+                        {/* Batch name — large, clickable */}
+                        <span
+                          onClick={() => {
+                            setSelectedBatch(batch);
+                            setActiveView('batchDetails');
+                          }}
+                          style={{
+                            fontSize: '20px',
+                            fontWeight: '700',
+                            color: '#3D35C4',
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            flex: 1
+                          }}
+                        >
+                          {batch.batch_number}
+                        </span>
+
+                        {/* Toggle + label */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          flexShrink: 0
+                        }}>
+                          <div
+                            onClick={() => handleToggleBatchStatus(batch)}
+                            style={{
+                              width: '48px',
+                              height: '26px',
+                              borderRadius: '13px',
+                              background: batch.is_active ? '#3D35C4' : '#E0E0E0',
+                              position: 'relative',
+                              cursor: 'pointer',
+                              transition: 'background 0.25s ease',
+                              flexShrink: 0
+                            }}
+                            title={batch.is_active ? 'Click to deactivate' : 'Click to activate'}
+                          >
+                            <div style={{
+                              position: 'absolute',
+                              top: '3px',
+                              left: batch.is_active ? '25px' : '3px',
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              background: '#FFFFFF',
+                              transition: 'left 0.25s ease',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                            }} />
+                          </div>
+                          <span style={{
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            color: batch.is_active ? '#3D35C4' : '#9E9E9E',
+                            minWidth: '52px'
+                          }}>
                             {batch.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </div>
-                        <p style={{ fontSize: '12px', color: '#757575', margin: '4px 0 0 0' }}>Key: <code style={{ background: '#EAEAEA', padding: '2px 4px', borderRadius: '3px' }}>{batch.registration_key}</code></p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleToggleBatchStatus(batch)}
-                        style={{
-                          background: batch.is_active ? '#FCE8E6' : '#E8F0FE',
-                          color: batch.is_active ? '#C5221F' : '#1A73E8',
-                          border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          fontWeight: '600',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {batch.is_active ? 'Deactivate' : 'Activate'}
-                      </button>
+                      {/* Bottom row — Show Key button */}
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setVisibleKeyBatchId(
+                            visibleKeyBatchId === batch.id ? null : batch.id
+                          )}
+                          style={{
+                            background: 'none',
+                            border: '1px solid #E0E0E0',
+                            borderRadius: '6px',
+                            padding: '5px 12px',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            color: '#757575',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <i className="ti ti-eye" style={{ fontSize: '14px' }} />
+                          {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
+                        </button>
+
+                        {/* Key reveal card */}
+                        {visibleKeyBatchId === batch.id && (
+                          <div style={{
+                            marginTop: '10px',
+                            background: '#F8F7FF',
+                            border: '1px solid #3D35C4',
+                            borderRadius: '8px',
+                            padding: '12px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px'
+                          }}>
+                            <i className="ti ti-key" style={{ color: '#3D35C4', fontSize: '16px', flexShrink: 0 }} />
+
+                            {/* Key text */}
+                            <span style={{
+                              flex: 1,
+                              fontFamily: 'monospace',
+                              fontSize: '13px',
+                              color: '#3D35C4',
+                              fontWeight: '600',
+                              letterSpacing: '0.05em',
+                              wordBreak: 'break-all'
+                            }}>
+                              {batch.registration_key}
+                            </span>
+
+                            {/* Copy button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(batch.registration_key);
+                                setCopiedBatchId(batch.id);
+                                setTimeout(() => setCopiedBatchId(null), 2000);
+                              }}
+                              style={{
+                                background: copiedBatchId === batch.id ? '#03DAC6' : '#3D35C4',
+                                color: copiedBatchId === batch.id ? '#000000' : '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '5px 12px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                                transition: 'background 0.2s'
+                              }}
+                            >
+                              {copiedBatchId === batch.id ? '✓ Copied' : 'Copy'}
+                            </button>
+
+                            {/* Close button */}
+                            <button
+                              type="button"
+                              onClick={() => setVisibleKeyBatchId(null)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: '#9E9E9E',
+                                fontSize: '18px',
+                                lineHeight: 1,
+                                padding: '0 4px',
+                                flexShrink: 0
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -551,7 +777,7 @@ const ApprovedInterns = () => {
               <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#111111', margin: 0 }}>Intern Management</h2>
               <p style={{ fontSize: '14px', color: '#757575', margin: 0 }}>Batch: <strong>{selectedBatch.batch_number}</strong></p>
             </div>
-            
+
             <button
               onClick={() => {
                 setActiveView('batches');
@@ -649,7 +875,7 @@ const ApprovedInterns = () => {
                             {initials}
                           </div>
                         )}
-                        
+
                         {/* Info details */}
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
@@ -712,7 +938,7 @@ const ApprovedInterns = () => {
                 flexDirection: 'column',
                 gap: '4px'
               }}>
-                {[0,1,2].map(i => (
+                {[0, 1, 2].map(i => (
                   <div key={i} style={{
                     width: '4px',
                     height: '4px',
@@ -774,26 +1000,81 @@ const ApprovedInterns = () => {
 
                   {/* Scrollable tab content */}
                   <div style={{ flex: 1, overflowY: 'auto' }}>
-                    
+
                     {/* Tab Contents: Details */}
                     {activeTab === 'details' && editedIntern && (
                       <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        {/* Status badge row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', margin: 0 }}>
-                            Intern Details
-                          </h3>
-                          <span style={{
-                            fontSize: '11px',
-                            background: '#E6F4EA',
-                            color: '#137333',
-                            padding: '3px 10px',
-                            borderRadius: '4px',
-                            fontWeight: '700',
-                            textTransform: 'uppercase'
-                          }}>
-                            {selectedIntern.status}
-                          </span>
+                        {/* Photo section */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '20px',
+                          paddingBottom: '20px',
+                          borderBottom: '1px solid #F0F0F0',
+                          marginBottom: '20px'
+                        }}>
+                          {/* Circular avatar */}
+                          {selectedIntern.photo_url ? (
+                            <img
+                              src={selectedIntern.photo_url}
+                              alt={selectedIntern.name}
+                              style={{
+                                width: '80px',
+                                height: '80px',
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                border: '3px solid #EEEEEE',
+                                flexShrink: 0
+                              }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: '80px',
+                              height: '80px',
+                              borderRadius: '50%',
+                              background: '#3D35C4',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '28px',
+                              fontWeight: '600',
+                              color: '#FFFFFF',
+                              flexShrink: 0,
+                              border: '3px solid #EEEEEE'
+                            }}>
+                              {selectedIntern.name?.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+
+                          {/* Name and dept next to photo */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{
+                              fontSize: '18px',
+                              fontWeight: '600',
+                              color: '#212121'
+                            }}>
+                              {selectedIntern.name}
+                            </span>
+                            <span style={{
+                              fontSize: '13px',
+                              color: '#757575'
+                            }}>
+                              {selectedIntern.dept} — {selectedIntern.college_name}
+                            </span>
+                            <span style={{
+                              fontSize: '11px',
+                              background: '#E6F4EA',
+                              color: '#137333',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontWeight: '700',
+                              textTransform: 'uppercase',
+                              alignSelf: 'flex-start',
+                              marginTop: '2px'
+                            }}>
+                              {selectedIntern.status}
+                            </span>
+                          </div>
                         </div>
 
                         {/* 2-column editable fields grid */}
@@ -869,7 +1150,7 @@ const ApprovedInterns = () => {
                               style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '8px', fontSize: '13px', color: '#212121', background: '#FFFFFF', boxSizing: 'border-box' }}
                             >
                               <option value="">Select Sem</option>
-                              {[1,2,3,4,5,6,7,8].map(s => (
+                              {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
                                 <option key={s} value={String(s)}>{s}</option>
                               ))}
                             </select>
@@ -908,269 +1189,272 @@ const ApprovedInterns = () => {
 
                     {/* Tab Contents: Project */}
                     {activeTab === 'project' && (
-                    <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                      <div>
-                        <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Project Details</h3>
-                        
-                        {/* Show Assigned Project */}
-                        {projects.length > 0 ? (
-                          <div style={{ background: '#FAFAFA', padding: '16px', border: '1px solid #EEEEEE', borderRadius: '8px', marginBottom: '10px' }}>
-                            <h4 style={{ fontSize: '14.5px', fontWeight: '700', color: '#3D35C4', margin: '0 0 8px 0' }}>{projects[0].title}</h4>
-                            <p style={{ fontSize: '13px', color: '#555555', margin: '0 0 14px 0', lineHeight: '1.5' }}>{projects[0].description}</p>
-                            <div style={{ display: 'flex', gap: '16px', fontSize: '12.5px' }}>
-                              {projects[0].git_repo_link && (
-                                <a href={projects[0].git_repo_link} target="_blank" rel="noreferrer" style={{ color: '#3D35C4', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <i className="ti ti-brand-github" /> Git Repo
-                                </a>
-                              )}
-                              {projects[0].live_project_link && (
-                                <a href={projects[0].live_project_link} target="_blank" rel="noreferrer" style={{ color: '#018786', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <i className="ti ti-external-link" /> Live Project
-                                </a>
-                              )}
+                      <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 2px 12px rgba(0,0,0,0.01)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div>
+                          <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Project Details</h3>
+
+                          {/* Show Assigned Project */}
+                          {projects.length > 0 ? (
+                            <div style={{ background: '#FAFAFA', padding: '16px', border: '1px solid #EEEEEE', borderRadius: '8px', marginBottom: '10px' }}>
+                              <h4 style={{ fontSize: '14.5px', fontWeight: '700', color: '#3D35C4', margin: '0 0 8px 0' }}>{projects[0].title}</h4>
+                              <p style={{ fontSize: '13px', color: '#555555', margin: '0 0 14px 0', lineHeight: '1.5' }}>{projects[0].description}</p>
+                              <div style={{ display: 'flex', gap: '16px', fontSize: '12.5px' }}>
+                                {projects[0].git_repo_link && (
+                                  <a href={projects[0].git_repo_link} target="_blank" rel="noreferrer" style={{ color: '#3D35C4', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <i className="ti ti-brand-github" /> Git Repo
+                                  </a>
+                                )}
+                                {projects[0].live_project_link && (
+                                  <a href={projects[0].live_project_link} target="_blank" rel="noreferrer" style={{ color: '#018786', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <i className="ti ti-external-link" /> Live Project
+                                  </a>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <p style={{ color: '#9E9E9E', fontSize: '13px', margin: '0 0 10px 0' }}>No project assigned yet. Use the form below to assign one.</p>
-                        )}
-                      </div>
-
-                      {/* Project Assignment Form */}
-                      <form onSubmit={handleAssignProject} style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #EEEEEE', paddingTop: '20px' }}>
-                        <h4 style={{ fontSize: '13px', fontWeight: '600', color: '#757575', margin: '0 0 4px 0' }}>
-                          {projects.length > 0 ? 'Update Project Specification' : 'Assign New Project'}
-                        </h4>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Project Title</label>
-                          <input
-                            type="text"
-                            placeholder="Project Title"
-                            value={projectTitle}
-                            onChange={(e) => setProjectTitle(e.target.value)}
-                            required
-                            style={{ height: '38px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
-                          />
+                          ) : (
+                            <p style={{ color: '#9E9E9E', fontSize: '13px', margin: '0 0 10px 0' }}>No project assigned yet. Use the form below to assign one.</p>
+                          )}
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Project Description</label>
-                          <textarea
-                            placeholder="Project Description"
-                            value={projectDesc}
-                            onChange={(e) => setProjectDesc(e.target.value)}
-                            required
-                            rows={3}
-                            style={{ padding: '10px 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                          />
-                        </div>
+                        {/* Project Assignment Form */}
+                        <form onSubmit={handleAssignProject} style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #EEEEEE', paddingTop: '20px' }}>
+                          <h4 style={{ fontSize: '13px', fontWeight: '600', color: '#757575', margin: '0 0 4px 0' }}>
+                            {projects.length > 0 ? 'Update Project Specification' : 'Assign New Project'}
+                          </h4>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Git Repository URL</label>
-                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <i className="ti ti-brand-github" style={{ position: 'absolute', left: '12px', color: '#757575', fontSize: '16px' }} />
-                            <input
-                              type="url"
-                              placeholder="https://github.com/username/repo"
-                              value={projectGit}
-                              onChange={(e) => setProjectGit(e.target.value)}
-                              style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
-                            />
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Live Deploy URL</label>
-                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <i className="ti ti-external-link" style={{ position: 'absolute', left: '12px', color: '#757575', fontSize: '16px' }} />
-                            <input
-                              type="url"
-                              placeholder="https://example.com"
-                              value={projectLive}
-                              onChange={(e) => setProjectLive(e.target.value)}
-                              style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
-                            />
-                          </div>
-                        </div>
-
-                        <button
-                          type="submit"
-                          style={{ height: '38px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', alignSelf: 'flex-start', padding: '0 24px', marginTop: '4px' }}
-                        >
-                          {projects.length > 0 ? 'Update Project Details' : 'Assign Project'}
-                        </button>
-                      </form>
-                    </div>
-                  )}
-
-                  {/* Tab Contents: Tasks */}
-                  {activeTab === 'tasks' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid #E0E0E0', borderRadius: '8px', overflow: 'hidden' }}>
-                      
-                      {/* Section 1: Current Assigned Work */}
-                      <div>
-                        <div style={{ ...sectionHeading, background: '#F8F7FF' }}>
-                          Current Assigned Work
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ background: '#F5F5F5' }}>
-                                <th style={thStyle}>Task</th>
-                                <th style={thStyle}>Expected Date</th>
-                                <th style={thStyle}>Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                const currentTask = tasks.find(t => t.status !== 'completed');
-                                return currentTask ? (
-                                  <tr style={{ background: '#EEF4FF' }}>
-                                    <td style={tdStyle}>{currentTask.title}</td>
-                                    <td style={tdStyle}>{formatDate(currentTask.expected_date)}</td>
-                                    <td style={tdStyle}>
-                                      <span style={inProgressBadge}>In Progress</span>
-                                    </td>
-                                  </tr>
-                                ) : (
-                                  <tr>
-                                    <td colSpan={3} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
-                                      No active task in progress.
-                                    </td>
-                                  </tr>
-                                );
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Section 2: Finished Works */}
-                      <div>
-                        <div style={{ ...sectionHeading, background: '#F0FFF4' }}>
-                          Finished Works
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ background: '#F5F5F5' }}>
-                                <th style={thStyle}>Task</th>
-                                <th style={thStyle}>Expected Date</th>
-                                <th style={thStyle}>Completion Date</th>
-                                <th style={thStyle}>Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                const finishedList = tasks.filter(t => t.status === 'completed');
-                                return finishedList.length > 0 ? (
-                                  finishedList.map((task, index) => (
-                                    <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FFF9' }}>
-                                      <td style={tdStyle}>{task.title}</td>
-                                      <td style={tdStyle}>{formatDate(task.expected_date)}</td>
-                                      <td style={tdStyle}>{formatDate(task.submission_date)}</td>
-                                      <td style={tdStyle}>
-                                        <span style={completedBadge}>Completed</span>
-                                      </td>
-                                    </tr>
-                                  ))
-                                ) : (
-                                  <tr>
-                                    <td colSpan={4} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
-                                      No finished tasks.
-                                    </td>
-                                  </tr>
-                                );
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Section 3: Upcoming Tasks */}
-                      <div>
-                        <div style={{ ...sectionHeading, background: '#FFF8F0' }}>
-                          Upcoming Tasks
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ background: '#F5F5F5' }}>
-                                <th style={thStyle}>Task</th>
-                                <th style={thStyle}>Expected Date</th>
-                                <th style={thStyle}>Action</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                const activeTask = tasks.find(t => t.status !== 'completed');
-                                const upcomingList = tasks.filter(t => t.status !== 'completed' && t.id !== activeTask?.id);
-                                return upcomingList.length > 0 ? (
-                                  upcomingList.map((task, index) => (
-                                    <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#FFFBF5' }}>
-                                      <td style={tdStyle}>{task.title}</td>
-                                      <td style={tdStyle}>{formatDate(task.expected_date)}</td>
-                                      <td style={tdStyle}>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteTask(task.id)}
-                                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                                          title="Delete Task"
-                                        >
-                                          <i className="ti ti-trash" style={{ color: '#B00020', fontSize: '18px' }} />
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))
-                                ) : (
-                                  <tr>
-                                    <td colSpan={3} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
-                                      No upcoming tasks queued.
-                                    </td>
-                                  </tr>
-                                );
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Section 4: Assign New Task */}
-                      <div style={{ padding: '20px', borderTop: '1px solid #E0E0E0', background: '#FAFAFA' }}>
-                        <h4 style={{ fontSize: '12px', fontWeight: '600', color: '#757575', textTransform: 'uppercase', marginBottom: '12px', marginTop: 0 }}>Assign New Task</h4>
-                        <form onSubmit={handleAssignTask} style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                          <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '11px', fontWeight: '600', color: '#757575' }}>Assign Work</label>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Project Title</label>
                             <input
                               type="text"
-                              placeholder="Describe the task to assign"
-                              value={assignWork}
-                              onChange={(e) => setAssignWork(e.target.value)}
+                              placeholder="Project Title"
+                              value={projectTitle}
+                              onChange={(e) => setProjectTitle(e.target.value)}
                               required
-                              style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                              style={{ height: '38px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
                             />
                           </div>
-                          <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '11px', fontWeight: '600', color: '#757575' }}>Expected Finish Date</label>
-                            <input
-                              type="date"
-                              value={expectedDate}
-                              onChange={(e) => setExpectedDate(e.target.value)}
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Project Description</label>
+                            <textarea
+                              placeholder="Project Description"
+                              value={projectDesc}
+                              onChange={(e) => setProjectDesc(e.target.value)}
                               required
-                              style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                              rows={3}
+                              style={{ padding: '10px 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                           </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Git Repository URL</label>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <i className="ti ti-brand-github" style={{ position: 'absolute', left: '12px', color: '#757575', fontSize: '16px' }} />
+                              <input
+                                type="url"
+                                placeholder="https://github.com/username/repo"
+                                value={projectGit}
+                                onChange={(e) => setProjectGit(e.target.value)}
+                                style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Live Deploy URL</label>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <i className="ti ti-external-link" style={{ position: 'absolute', left: '12px', color: '#757575', fontSize: '16px' }} />
+                              <input
+                                type="url"
+                                placeholder="https://example.com"
+                                value={projectLive}
+                                onChange={(e) => setProjectLive(e.target.value)}
+                                style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+
                           <button
                             type="submit"
-                            style={{ height: '40px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', padding: '0 24px' }}
+                            style={{ height: '38px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', alignSelf: 'flex-start', padding: '0 24px', marginTop: '4px' }}
                           >
-                            Assign Task
+                            {projects.length > 0 ? 'Update Project Details' : 'Assign Project'}
                           </button>
                         </form>
                       </div>
+                    )}
 
-                    </div>
-                  )}
+                    {/* Tab Contents: Tasks */}
+                    {activeTab === 'tasks' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid #E0E0E0', borderRadius: '8px', overflow: 'hidden' }}>
+
+                        {/* Section 1: Current Assigned Work */}
+                        <div>
+                          <div style={{ ...sectionHeading, background: '#F8F7FF' }}>
+                            Current Assigned Work
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: '#F5F5F5' }}>
+                                  <th style={thStyle}>Task</th>
+                                  <th style={thStyle}>Expected Date</th>
+                                  <th style={thStyle}>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(() => {
+                                  const currentTask = tasks.find(t => t.status !== 'completed');
+                                  return currentTask ? (
+                                    <tr style={{ background: '#EEF4FF' }}>
+                                      <td style={tdStyle}>{currentTask.title}</td>
+                                      <td style={tdStyle}>{formatDate(currentTask.expected_date)}</td>
+                                      <td style={tdStyle}>
+                                        <span style={inProgressBadge}>In Progress</span>
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    <tr>
+                                      <td colSpan={3} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                                        No active task in progress.
+                                      </td>
+                                    </tr>
+                                  );
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Section 2: Finished Works */}
+                        <div>
+                          <div style={{ ...sectionHeading, background: '#F0FFF4' }}>
+                            Finished Works
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: '#F5F5F5' }}>
+                                  <th style={thStyle}>Task</th>
+                                  <th style={thStyle}>Expected Date</th>
+                                  <th style={thStyle}>Completion Date</th>
+                                  <th style={thStyle}>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(() => {
+                                  const finishedList = tasks.filter(t => t.status === 'completed');
+                                  return finishedList.length > 0 ? (
+                                    finishedList.map((task, index) => (
+                                      <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FFF9' }}>
+                                        <td style={tdStyle}>{task.title}</td>
+                                        <td style={tdStyle}>{formatDate(task.expected_date)}</td>
+                                        <td style={tdStyle}>{formatDate(task.submission_date)}</td>
+                                        <td style={tdStyle}>
+                                          <span style={completedBadge}>Completed</span>
+                                        </td>
+                                      </tr>
+                                    ))
+                                  ) : (
+                                    <tr>
+                                      <td colSpan={4} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                                        No finished tasks.
+                                      </td>
+                                    </tr>
+                                  );
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Section 3: Upcoming Tasks */}
+                        <div>
+                          <div style={{ ...sectionHeading, background: '#FFF8F0' }}>
+                            Upcoming Tasks
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: '#F5F5F5' }}>
+                                  <th style={thStyle}>Task</th>
+                                  <th style={thStyle}>Expected Date</th>
+                                  <th style={thStyle}>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(() => {
+                                  const activeTask = tasks.find(t => t.status !== 'completed');
+                                  const upcomingList = tasks.filter(t => t.status !== 'completed' && t.id !== activeTask?.id);
+                                  return upcomingList.length > 0 ? (
+                                    upcomingList.map((task, index) => (
+                                      <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#FFFBF5' }}>
+                                        <td style={tdStyle}>{task.title}</td>
+                                        <td style={tdStyle}>{formatDate(task.expected_date)}</td>
+                                        <td style={tdStyle}>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDeleteTask(task.id);
+                                            }}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                            title="Delete Task"
+                                          >
+                                            <i className="ti ti-trash" style={{ color: '#B00020', fontSize: '18px' }} />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))
+                                  ) : (
+                                    <tr>
+                                      <td colSpan={3} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                                        No upcoming tasks queued.
+                                      </td>
+                                    </tr>
+                                  );
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Section 4: Assign New Task */}
+                        <div style={{ padding: '20px', borderTop: '1px solid #E0E0E0', background: '#FAFAFA' }}>
+                          <h4 style={{ fontSize: '12px', fontWeight: '600', color: '#757575', textTransform: 'uppercase', marginBottom: '12px', marginTop: 0 }}>Assign New Task</h4>
+                          <form onSubmit={handleAssignTask} style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                            <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <label style={{ fontSize: '11px', fontWeight: '600', color: '#757575' }}>Assign Work</label>
+                              <input
+                                type="text"
+                                placeholder="Describe the task to assign"
+                                value={assignWork}
+                                onChange={(e) => setAssignWork(e.target.value)}
+                                required
+                                style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <label style={{ fontSize: '11px', fontWeight: '600', color: '#757575' }}>Expected Finish Date</label>
+                              <input
+                                type="date"
+                                value={expectedDate}
+                                onChange={(e) => setExpectedDate(e.target.value)}
+                                required
+                                style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <button
+                              type="submit"
+                              style={{ height: '40px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', padding: '0 24px' }}
+                            >
+                              Assign Task
+                            </button>
+                          </form>
+                        </div>
+
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (

@@ -161,6 +161,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <input
                           type="date"
+                          max={new Date().toISOString().split('T')[0]}
                           value={submissionDate}
                           onChange={(e) => setSubmissionDate(e.target.value)}
                           required
@@ -171,6 +172,11 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                           onClick={() => {
                             if (!submissionDate) {
                               alert('Please select a submission date.');
+                              return;
+                            }
+                            const today = new Date().toISOString().split('T')[0];
+                            if (submissionDate > today) {
+                              alert('Submission date cannot be a future date.');
                               return;
                             }
                             onUpdateTaskStatus(activeTask.id, 'completed', submissionDate);
