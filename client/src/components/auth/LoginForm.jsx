@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import * as authService from '../../services/authService';
 
 const LoginForm = ({ role, isActive, onLogin, onRegisterClick }) => {
   const [email, setEmail] = useState('');
@@ -39,30 +38,22 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick }) => {
 
     if (isValid) {
       try {
-        let userEmail = email;
-        if (role === 'intern') {
-          const loginData = await authService.internLogin(email, password);
-          userEmail = loginData.user.email;
-        } else {
-          const loginData = await authService.login(email, password);
-          const profile = await authService.getUserRole(loginData.user.id);
-          
-          if (profile.role !== role) {
+        if (onLogin) {
+          const data = await onLogin(email, password);
+          if (data.role !== role) {
+            // Log out immediately if the role doesn't match the portal Gateway restriction
+            localStorage.removeItem('token');
+            localStorage.removeItem('role');
+            localStorage.removeItem('intern_id');
             throw new Error(`Unauthorized: This gateway portal is restricted to ${role} role only.`);
           }
         }
-
-        if (onLogin) {
-          onLogin(role, userEmail);
-        }
       } catch (err) {
-        console.warn('Supabase authentication failed, evaluating mock login fallback:', err.message);
-        
-        // Fallback to offline mock logic
-        if (email.endsWith('@example.com') || email === 'admin@tarcin.com' || email === 'admin@example.com') {
-          if (onLogin) {
-            onLogin(role, email);
-          }
+        console.warn('Login authentication failed:', err.message);
+        if (err.message === 'pending') {
+          setPasswordError('Your registration is pending admin approval.');
+        } else if (err.message === 'rejected') {
+          setPasswordError('Your registration has been rejected.');
         } else {
           setPasswordError(err.message || 'Authentication failed. Please check credentials.');
         }

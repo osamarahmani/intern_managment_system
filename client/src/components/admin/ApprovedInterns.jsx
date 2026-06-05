@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../supabase/client';
+import { apiFetch, getPhotoUrl } from '../../services/api';
 import { formatDate } from '../../utils/formatDate';
 import * as XLSX from 'xlsx';
 
@@ -53,6 +53,21 @@ const completedBadge = {
   fontSize: '11px',
   fontWeight: '700',
   textTransform: 'uppercase'
+};
+
+const formatDateForInput = (dateStr) => {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch {
+    return '';
+  }
 };
 
 const ApprovedInterns = () => {
@@ -167,14 +182,8 @@ const ApprovedInterns = () => {
     setSummaryLoading(true);
     try {
       // 1. Fetch interns in batch
-      const { data: batchInterns, error: internErr } = await supabase
-        .from('interns')
-        .select('id, name, photo_url, starting_date, ending_date')
-        .eq('batch_number', batchNum)
-        .eq('status', 'approved');
+      const batchInterns = await apiFetch(`/api/interns/batch/${batchNum}`);
       
-      if (internErr) throw internErr;
-
       const safeInterns = batchInterns || [];
       const internIds = safeInterns.map(i => i.id);
 
@@ -198,20 +207,12 @@ const ApprovedInterns = () => {
       }
 
       // 2. Fetch tasks for those interns
-      const { data: batchTasks, error: taskErr } = await supabase
-        .from('tasks')
-        .select('id, intern_id, status, expected_date, submission_date')
-        .in('intern_id', internIds);
-
-      if (taskErr) throw taskErr;
+      const tasksData = await Promise.all(internIds.map(id => apiFetch(`/api/tasks/intern/${id}`)));
+      const batchTasks = tasksData.flat();
 
       // 3. Fetch projects for those interns
-      const { data: batchProjects, error: projErr } = await supabase
-        .from('projects')
-        .select('id, intern_id')
-        .in('intern_id', internIds);
-
-      if (projErr) throw projErr;
+      const projectsData = await Promise.all(internIds.map(id => apiFetch(`/api/projects/intern/${id}`)));
+      const batchProjects = projectsData.filter(Boolean);
 
       const safeTasks = batchTasks || [];
       const safeProjects = batchProjects || [];
@@ -287,17 +288,13 @@ const ApprovedInterns = () => {
     setExportLoading(true);
     try {
       // 1. Fetch interns
-      let internsQuery = supabase
-        .from('interns')
-        .select('*')
-        .eq('status', 'approved');
-
+      let interns;
       if (batchNumber) {
-        internsQuery = internsQuery.eq('batch_number', batchNumber);
+        interns = await apiFetch(`/api/interns/batch/${batchNumber}`);
+      } else {
+        const all = await apiFetch('/api/interns');
+        interns = all.filter(i => i.status === 'approved');
       }
-
-      const { data: interns, error: internsErr } = await internsQuery;
-      if (internsErr) throw internsErr;
 
       if (!interns || interns.length === 0) {
         alert('No interns found to export.');
@@ -308,18 +305,12 @@ const ApprovedInterns = () => {
       const internIds = interns.map(i => i.id);
 
       // 2. Fetch projects
-      const { data: projects, error: projectsErr } = await supabase
-        .from('projects')
-        .select('*')
-        .in('intern_id', internIds);
-      if (projectsErr) throw projectsErr;
+      const projectsData = await Promise.all(internIds.map(id => apiFetch(`/api/projects/intern/${id}`)));
+      const projects = projectsData.filter(Boolean);
 
       // 3. Fetch tasks
-      const { data: tasks, error: tasksErr } = await supabase
-        .from('tasks')
-        .select('*')
-        .in('intern_id', internIds);
-      if (tasksErr) throw tasksErr;
+      const tasksData = await Promise.all(internIds.map(id => apiFetch(`/api/tasks/intern/${id}`)));
+      const tasks = tasksData.flat();
 
       // 4. Build lookup maps
       const internMap = {};
@@ -431,7 +422,11 @@ const ApprovedInterns = () => {
   // 4. Populate editedIntern when selectedIntern changes
   useEffect(() => {
     if (selectedIntern) {
-      setEditedIntern({ ...selectedIntern });
+      setEditedIntern({
+        ...selectedIntern,
+        starting_date: formatDateForInput(selectedIntern.starting_date),
+        ending_date: formatDateForInput(selectedIntern.ending_date)
+      });
       setDetailsSaved(false);
     }
   }, [selectedIntern]);
@@ -471,22 +466,24 @@ const ApprovedInterns = () => {
     setSavingDetails(true);
     setDetailsSaved(false);
     try {
-      const { error } = await supabase
-        .from('interns')
-        .update({
-          name: editedIntern.name,
-          college_name: editedIntern.college_name,
-          dept: editedIntern.dept,
-          year: editedIntern.year,
-          sem: editedIntern.sem,
-          mail: editedIntern.mail,
-          number: editedIntern.number,
-          starting_date: editedIntern.starting_date,
-          ending_date: editedIntern.ending_date,
-          batch_number: editedIntern.batch_number
-        })
-        .eq('id', selectedIntern.id);
-      if (error) throw error;
+      const current = await apiFetch(`/api/interns/${selectedIntern.id}`);
+      const merged = {
+        ...current,
+        name: editedIntern.name,
+        college_name: editedIntern.college_name,
+        dept: editedIntern.dept,
+        year: parseInt(editedIntern.year, 10),
+        sem: parseInt(editedIntern.sem, 10),
+        mail: editedIntern.mail,
+        number: editedIntern.number,
+        starting_date: editedIntern.starting_date,
+        ending_date: editedIntern.ending_date,
+        batch_number: editedIntern.batch_number
+      };
+      await apiFetch(`/api/interns/${selectedIntern.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(merged)
+      });
 
       // Update local interns list state
       setInterns((prev) =>
@@ -509,11 +506,7 @@ const ApprovedInterns = () => {
 
   const fetchBatches = async () => {
     try {
-      const { data, error } = await supabase
-        .from('batches')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+      const data = await apiFetch('/api/batches');
       if (data) setBatches(data);
     } catch (err) {
       console.error('Error fetching batches:', err.message);
@@ -522,13 +515,7 @@ const ApprovedInterns = () => {
 
   const fetchInternsForBatch = async (batchNum) => {
     try {
-      const { data, error } = await supabase
-        .from('interns')
-        .select('*')
-        .eq('batch_number', batchNum)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+      const data = await apiFetch(`/api/interns/batch/${batchNum}`);
       if (data) setInterns(data);
     } catch (err) {
       console.error('Error fetching interns:', err.message);
@@ -538,31 +525,27 @@ const ApprovedInterns = () => {
   const fetchInternDetails = async (internId) => {
     try {
       // Fetch projects
-      const { data: projData, error: projError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('intern_id', internId);
-      if (projError) throw projError;
-      setProjects(projData || []);
+      const projData = await apiFetch(`/api/projects/intern/${internId}`);
+      setProjects(projData ? [projData] : []);
 
       // Prefill project form states reactively
-      if (projData && projData.length > 0) {
-        setProjectTitle(projData[0].title || '');
-        setProjectDesc(projData[0].description || '');
-        setProjectGit(projData[0].git_repo_link || '');
-        setProjectLive(projData[0].live_project_link || '');
+      if (projData) {
+        setProjectTitle(projData.title || '');
+        setProjectDesc(projData.description || '');
+        setProjectGit(projData.git_repo_link || '');
+        setProjectLive(projData.live_project_link || '');
       } else {
         resetProjectForm();
       }
 
       // Fetch tasks
-      const { data: taskData, error: taskError } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('intern_id', internId)
-        .order('created_at', { ascending: true });
-      if (taskError) throw taskError;
-      setTasks(taskData || []);
+      const taskData = await apiFetch(`/api/tasks/intern/${internId}`);
+      if (taskData) {
+        taskData.reverse();
+        setTasks(taskData);
+      } else {
+        setTasks([]);
+      }
     } catch (err) {
       console.error('Error fetching intern assignments:', err.message);
     }
@@ -602,17 +585,13 @@ const ApprovedInterns = () => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('batches')
-        .insert({
+      const data = await apiFetch('/api/batches', {
+        method: 'POST',
+        body: JSON.stringify({
           batch_number: batchNumber.trim(),
-          registration_key: registrationKey.trim(),
-          is_active: true
+          registration_key: registrationKey.trim()
         })
-        .select()
-        .single();
-
-      if (error) throw error;
+      });
 
       setSuccessMsg(`Batch "${batchNumber}" provisioned successfully!`);
       setBatches((prev) => [data, ...prev]);
@@ -626,12 +605,13 @@ const ApprovedInterns = () => {
   const handleToggleBatchStatus = async (batch) => {
     const updatedStatus = !batch.is_active;
     try {
-      const { error } = await supabase
-        .from('batches')
-        .update({ is_active: updatedStatus })
-        .eq('id', batch.id);
-
-      if (error) throw error;
+      await apiFetch(`/api/batches/${batch.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          is_active: updatedStatus,
+          visibility_mode: batch.visibility_mode
+        })
+      });
 
       setBatches((prev) =>
         prev.map((b) => (b.id === batch.id ? { ...b, is_active: updatedStatus } : b))
@@ -643,12 +623,13 @@ const ApprovedInterns = () => {
 
   const handleUpdateVisibilityMode = async (batchId, mode) => {
     try {
-      const { error } = await supabase
-        .from('batches')
-        .update({ visibility_mode: mode })
-        .eq('id', batchId);
-
-      if (error) throw error;
+      await apiFetch(`/api/batches/${batchId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          is_active: batches.find(b => b.id === batchId)?.is_active ?? true,
+          visibility_mode: mode
+        })
+      });
 
       setBatches((prev) =>
         prev.map((b) => (b.id === batchId ? { ...b, visibility_mode: mode } : b))
@@ -673,23 +654,18 @@ const ApprovedInterns = () => {
     }
 
     try {
-      // Upsert project so that it overwrites if one exists for the intern, or creates a new one
-      const { data, error } = await supabase
-        .from('projects')
-        .upsert({
+      const data = await apiFetch('/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({
           intern_id: selectedIntern.id,
           title: projectTitle.trim(),
           description: projectDesc.trim(),
           git_repo_link: projectGit.trim(),
           live_project_link: projectLive.trim()
         })
-        .select()
-        .single();
-
-      if (error) throw error;
+      });
 
       alert('Project assigned/updated successfully!');
-      // Update local state reactively
       setProjects([data]);
       resetProjectForm();
     } catch (err) {
@@ -707,19 +683,15 @@ const ApprovedInterns = () => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert({
+      const data = await apiFetch('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
           intern_id: selectedIntern.id,
           title: assignWork.trim(),
           expected_date: expectedDate,
-          submission_date: null,
-          status: 'not_started'
+          upcoming_task: false
         })
-        .select()
-        .single();
-
-      if (error) throw error;
+      });
 
       alert('Task assigned successfully!');
       setTasks((prev) => [...prev, data]);
@@ -730,16 +702,11 @@ const ApprovedInterns = () => {
   };
 
   const handleDeleteTask = async (taskId) => {
-    console.log('Delete task called with id:', taskId);
     if (!window.confirm('Are you sure you want to delete this task?')) return;
-    console.log('Confirmed delete for:', taskId);
     try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskId);
-
-      if (error) throw error;
+      await apiFetch(`/api/tasks/${taskId}`, {
+        method: 'DELETE'
+      });
 
       alert('Task deleted successfully!');
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
@@ -1169,9 +1136,9 @@ const ApprovedInterns = () => {
                         alignItems: 'center',
                         gap: '12px'
                       }}>
-                        {summaryStats.topPerformer.photo_url ? (
+                        {summaryStats.topPerformer.photo_mime_type ? (
                           <img
-                            src={summaryStats.topPerformer.photo_url}
+                            src={getPhotoUrl(summaryStats.topPerformer.id)}
                             alt={summaryStats.topPerformer.name}
                             style={{
                               width: '44px',
@@ -1592,9 +1559,9 @@ const ApprovedInterns = () => {
                         className={`intern-list-item ${isSelected ? 'active' : ''}`}
                       >
                         {/* Avatar */}
-                        {intern.photo_url || intern.photo ? (
+                        {intern.photo_mime_type ? (
                           <img
-                            src={intern.photo_url || intern.photo}
+                            src={getPhotoUrl(intern.id)}
                             alt={intern.name}
                             style={{
                               width: '40px',
@@ -1762,9 +1729,9 @@ const ApprovedInterns = () => {
                           marginBottom: '20px'
                         }}>
                           {/* Circular avatar */}
-                          {selectedIntern.photo_url ? (
+                          {selectedIntern.photo_mime_type ? (
                             <img
-                              src={selectedIntern.photo_url}
+                              src={getPhotoUrl(selectedIntern.id)}
                               alt={selectedIntern.name}
                               style={{
                                 width: '80px',

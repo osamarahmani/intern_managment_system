@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../supabase/client';
-import { getTasksByInternId, updateTaskStatus } from '../../services/taskService';
+import { apiFetch, getInternId, getPhotoUrl } from '../../services/api';
 import './InternLayout.css';
 
 // We import subpages directly
@@ -35,30 +34,12 @@ const InternLayout = ({ onLogout }) => {
   const fetchInternData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user is currently authenticated.');
+      const internId = getInternId();
+      if (!internId) throw new Error('No intern ID found in local storage.');
 
-      const { data: profile, error: profileErr } = await supabase
-        .from('profiles')
-        .select('intern_id')
-        .eq('id', user.id)
-        .single();
-      if (profileErr) throw profileErr;
-
-      const { data: intern, error: internErr } = await supabase
-        .from('interns')
-        .select('*')
-        .eq('id', profile.intern_id)
-        .single();
-      if (internErr) throw internErr;
-
-      const { data: projectData } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('intern_id', profile.intern_id)
-        .maybeSingle();
-
-      const tasksData = await getTasksByInternId(profile.intern_id);
+      const intern = await apiFetch(`/api/interns/${internId}`);
+      const projectData = await apiFetch(`/api/projects/intern/${internId}`);
+      const tasksData = await apiFetch(`/api/tasks/intern/${internId}`);
 
       setInternData(intern);
       setProject(projectData);
@@ -76,10 +57,22 @@ const InternLayout = ({ onLogout }) => {
 
   const handleUpdateTaskStatus = async (taskId, newStatus, submissionDate = null) => {
     try {
-      const updatedTask = await updateTaskStatus(taskId, newStatus, submissionDate);
+      const existingTask = tasks.find((t) => t.id === taskId);
+      if (!existingTask) return;
+
+      await apiFetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: newStatus,
+          submission_date: submissionDate,
+          title: existingTask.title,
+          expected_date: existingTask.expected_date,
+          upcoming_task: existingTask.upcoming_task
+        })
+      });
 
       setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? updatedTask : t))
+        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, submission_date: submissionDate } : t))
       );
     } catch (err) {
       console.error('Error updating task status:', err.message);
@@ -87,13 +80,7 @@ const InternLayout = ({ onLogout }) => {
     }
   };
 
-  const handleLogoutClick = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (err) {
-      console.error('Logout error:', err.message);
-    }
+  const handleLogoutClick = () => {
     onLogout();
   };
 
@@ -187,9 +174,9 @@ const InternLayout = ({ onLogout }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           {/* Intern avatar + name */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {internData?.photo_url || internData?.photo ? (
+            {internData?.photo_mime_type ? (
               <img
-                src={internData.photo_url || internData.photo}
+                src={getPhotoUrl(internData.id)}
                 alt={internData.name}
                 style={{
                   width: '34px',
@@ -278,14 +265,14 @@ const InternLayout = ({ onLogout }) => {
               <InternProfilePage
                 internData={internData}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_url || ''}
+                avatarUrl={internData?.photo_mime_type ? getPhotoUrl(internData.id) : ''}
               />
             )}
             {activePage === 'project' && (
               <InternProjectPage
                 project={project}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_url || ''}
+                avatarUrl={internData?.photo_mime_type ? getPhotoUrl(internData.id) : ''}
               />
             )}
             {activePage === 'tasks' && (
@@ -294,15 +281,14 @@ const InternLayout = ({ onLogout }) => {
                 internId={internData?.id}
                 onUpdateTaskStatus={handleUpdateTaskStatus}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_url || ''}
+                avatarUrl={internData?.photo_mime_type ? getPhotoUrl(internData.id) : ''}
               />
             )}
             {activePage === 'directory' && (
               <BatchDirectory
                 internId={internData?.id}
-                supabase={supabase}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_url || ''}
+                avatarUrl={internData?.photo_mime_type ? getPhotoUrl(internData.id) : ''}
               />
             )}
           </>

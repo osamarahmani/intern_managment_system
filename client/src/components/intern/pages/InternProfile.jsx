@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatDate } from '../../../utils/formatDate';
+import { getPhotoUrl } from '../../../services/api';
 
 const InternProfile = ({ internData }) => {
   if (!internData) return null;
@@ -25,8 +26,8 @@ const InternProfile = ({ internData }) => {
         padding: '40px 24px'
       }}>
         {/* Avatar */}
-        {internData.photo_url || internData.photo ? (
-          <img src={internData.photo_url || internData.photo} alt={internData.name} style={{
+        {internData.photo_mime_type ? (
+          <img src={getPhotoUrl(internData.id)} alt={internData.name} style={{
             width: '120px', height: '120px',
             borderRadius: '50%', objectFit: 'cover',
             border: '3px solid rgba(255,255,255,0.3)'

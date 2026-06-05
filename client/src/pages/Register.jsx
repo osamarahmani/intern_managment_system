@@ -5,7 +5,7 @@ import ContactDetails from '../components/registration/steps/ContactDetails';
 import ProgramDetails from '../components/registration/steps/ProgramDetails';
 import ReviewSubmit from '../components/registration/steps/ReviewSubmit';
 import SuccessScreen from '../components/registration/SuccessScreen';
-import { supabase } from '../supabase/client';
+import { apiFetch } from '../services/api';
 
 const Register = ({ 
   currentStep, 
@@ -36,85 +36,41 @@ const Register = ({
     setErrorMsg('');
 
     try {
-      // 1. Verify that entered Batch Number and Registration Key are active in Supabase
-      const { data: batchData, error: batchError } = await supabase
-        .from('batches')
-        .select('*')
-        .eq('batch_number', formData.batchNumber?.trim())
-        .eq('registration_key', formData.registrationKey?.trim())
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (batchError) throw batchError;
-
-      if (!batchData) {
-        throw new Error('Registration failed: Invalid or inactive Batch Number and Registration Key.');
+      // Convert photo to base64 if exists
+      let photoBase64 = null;
+      let photoMimeType = null;
+      if (formData.photo instanceof File) {
+        photoMimeType = formData.photo.type;
+        photoBase64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(formData.photo);
+        });
       }
 
-      // Step 1 — create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.mail,
-        password: formData.password
-      });
-      if (authError) throw authError;
-
-      // Step 2 — wait for session to be established
-      const { data: { session } } = await supabase.auth.getSession();
-
-      // Upload profile photo if provided
-      let uploadedPhotoUrl = null;
-      if (formData.photo) {
-        console.log('formData.photo type:', typeof formData.photo);
-        console.log('formData.photo instanceof File:', formData.photo instanceof File);
-        console.log('formData.photo value:', formData.photo);
-        try {
-          const { uploadPhoto } = await import('../services/internService');
-          uploadedPhotoUrl = await uploadPhoto(formData.photo, authData.user.id);
-        } catch (uploadErr) {
-          console.error('Upload failed:', uploadErr);
-          alert('Photo upload failed: ' + (uploadErr.message || uploadErr));
-          throw uploadErr;
-        }
-      }
-
-      // Step 3 — insert intern record with photo_url populated
-      const { data: internData, error: internError } = await supabase
-        .from('interns')
-        .insert({
+      await apiFetch('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
           name: formData.name,
           college_name: formData.collegeName,
           dept: formData.dept,
-          year: formData.year,
-          sem: formData.sem,
+          year: parseInt(formData.year, 10),
+          sem: parseInt(formData.sem, 10),
           mail: formData.mail,
           number: formData.number,
           starting_date: formData.startingDate || new Date().toISOString().split('T')[0],
           ending_date: formData.endingDate || new Date().toISOString().split('T')[0],
-          photo_url: uploadedPhotoUrl,
-          status: 'pending',
-          batch_number: formData.batchNumber
+          batch_number: formData.batchNumber,
+          registration_key: formData.registrationKey,
+          password: formData.password,
+          photo: photoBase64,
+          photo_mime_type: photoMimeType
         })
-        .select()
-        .single();
-      if (internError) throw internError;
-
-      // Step 4 — upsert profile record linking auth user to intern
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: authData.user.id,
-          role: 'intern',
-          intern_id: internData.id
-        });
-      if (profileError) throw profileError;
-
-      // Automatically sign out because registration is pending admin approval
-      await supabase.auth.signOut();
-
-      // 5. Successful! Set submitted true to show success page
+      });
       setSubmitted(true);
     } catch (err) {
-      setErrorMsg(err.message || 'An unexpected error occurred during registration.');
+      setErrorMsg(err.message);
     } finally {
       setLoading(false);
     }

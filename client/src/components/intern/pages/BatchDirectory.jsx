@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../../../utils/formatDate';
+import { apiFetch, getPhotoUrl } from '../../../services/api';
 
-const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
+const BatchDirectory = ({ internId, internName, avatarUrl }) => {
   const [loading, setLoading] = useState(true);
   const [viewerIntern, setViewerIntern] = useState(null);
   const [batchVisibilityMode, setBatchVisibilityMode] = useState('intern_choice'); // 'public' | 'private' | 'intern_choice'
@@ -23,45 +24,32 @@ const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
     setErrorMsg('');
     try {
       // 1. Fetch current intern record to get batch and visibility settings
-      const { data: intern, error: internErr } = await supabase
-        .from('interns')
-        .select('*')
-        .eq('id', internId)
-        .single();
-      if (internErr) throw internErr;
+      const intern = await apiFetch(`/api/interns/${internId}`);
       setViewerIntern(intern);
 
       // 2. Fetch current batch record to get visibility mode
-      const { data: batch, error: batchErr } = await supabase
-        .from('batches')
-        .select('visibility_mode')
-        .eq('batch_number', intern.batch_number)
-        .maybeSingle();
-      if (batchErr) throw batchErr;
+      const batches = await apiFetch('/api/batches');
+      const batch = batches.find(b => b.batch_number === intern.batch_number);
 
       const visMode = batch ? batch.visibility_mode : 'intern_choice';
       setBatchVisibilityMode(visMode);
 
       // 3. Fetch approved teammates in same batch
-      const { data: approvedInterns, error: listErr } = await supabase
-        .from('interns')
-        .select('id, name, dept, college_name, year, sem, photo_url, profile_visible, batch_number, mail, number, starting_date, ending_date, status')
-        .eq('batch_number', intern.batch_number)
-        .eq('status', 'approved')
-        .order('name', { ascending: true });
-      if (listErr) throw listErr;
+      const approvedInterns = await apiFetch(`/api/interns/batch/${intern.batch_number}`);
+      approvedInterns.sort((a, b) => a.name.localeCompare(b.name));
 
       // 4. Fetch projects to build a project title map
-      const { data: projList } = await supabase
-        .from('projects')
-        .select('intern_id, title');
-
       const pm = {};
-      if (projList) {
-        projList.forEach(p => {
-          pm[p.intern_id] = p.title;
-        });
-      }
+      await Promise.all(approvedInterns.map(async (mate) => {
+        try {
+          const proj = await apiFetch(`/api/projects/intern/${mate.id}`);
+          if (proj) {
+            pm[mate.id] = proj.title;
+          }
+        } catch (err) {
+          console.error(`Failed to fetch project for mate ${mate.id}`, err);
+        }
+      }));
       setProjectsMap(pm);
 
       setTeammates(approvedInterns || []);
@@ -99,19 +87,14 @@ const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
     setTeammateTasks([]);
     try {
       // Fetch project
-      const { data: projData } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('intern_id', mateId)
-        .maybeSingle();
+      const projData = await apiFetch(`/api/projects/intern/${mateId}`);
       setTeammateProject(projData);
 
       // Fetch tasks
-      const { data: tasksData } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('intern_id', mateId)
-        .order('created_at', { ascending: true });
+      const tasksData = await apiFetch(`/api/tasks/intern/${mateId}`);
+      if (tasksData) {
+        tasksData.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+      }
       setTeammateTasks(tasksData || []);
     } catch (err) {
       console.error('Error fetching teammate project/tasks:', err.message);
@@ -129,11 +112,24 @@ const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
   const handleToggleVisibility = async (visibleVal) => {
     if (!viewerIntern) return;
     try {
-      const { error } = await supabase
-        .from('interns')
-        .update({ profile_visible: visibleVal })
-        .eq('id', viewerIntern.id);
-      if (error) throw error;
+      const updated = {
+        name: viewerIntern.name,
+        college_name: viewerIntern.college_name,
+        dept: viewerIntern.dept,
+        year: viewerIntern.year,
+        sem: viewerIntern.sem,
+        mail: viewerIntern.mail,
+        number: viewerIntern.number,
+        starting_date: viewerIntern.starting_date,
+        ending_date: viewerIntern.ending_date,
+        batch_number: viewerIntern.batch_number,
+        status: viewerIntern.status,
+        profile_visible: visibleVal
+      };
+      await apiFetch(`/api/interns/${viewerIntern.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updated)
+      });
 
       // Update local state reactively
       const updatedIntern = { ...viewerIntern, profile_visible: visibleVal };
@@ -307,9 +303,9 @@ const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
                   }}
                 >
                   {/* Circular avatar */}
-                  {mate.photo_url ? (
+                  {mate.photo_mime_type ? (
                     <img
-                      src={mate.photo_url}
+                      src={getPhotoUrl(mate.id)}
                       alt={mate.name}
                       style={{
                         width: '40px',
@@ -451,9 +447,9 @@ const BatchDirectory = ({ internId, supabase, internName, avatarUrl }) => {
                           marginBottom: '28px'
                         }}>
                           {/* Avatar */}
-                          {selectedTeammate.photo_url ? (
+                          {selectedTeammate.photo_mime_type ? (
                             <img
-                              src={selectedTeammate.photo_url}
+                              src={getPhotoUrl(selectedTeammate.id)}
                               alt={selectedTeammate.name}
                               style={{
                                 width: '80px',

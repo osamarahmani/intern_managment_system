@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import ApprovedInterns from './ApprovedInterns';
 import PendingApprovals from './PendingApprovals';
-import { getPendingInterns, approveIntern, rejectIntern } from '../../services/internService';
+import { apiFetch, getPhotoUrl } from '../../services/api';
 import './AdminLayout.css';
 
 const AdminLayout = ({ onLogout }) => {
@@ -34,8 +34,12 @@ const AdminLayout = ({ onLogout }) => {
   const fetchPending = async () => {
     setLoading(true);
     try {
-      const data = await getPendingInterns();
-      setPendingInterns(data || []);
+      const allInterns = await apiFetch('/api/interns');
+      const pending = allInterns.filter((i) => i.status === 'pending').map((intern) => ({
+        ...intern,
+        photo: intern.photo_mime_type ? getPhotoUrl(intern.id) : null
+      }));
+      setPendingInterns(pending || []);
     } catch (err) {
       console.error('Error fetching pending registrations:', err.message);
     } finally {
@@ -45,12 +49,14 @@ const AdminLayout = ({ onLogout }) => {
 
   const handleApprove = async (id) => {
     try {
-      await approveIntern(id);
-      const approved = pendingInterns.find((i) => i.id === id);
+      const intern = pendingInterns.find((i) => i.id === id);
+      if (!intern) return;
+      await apiFetch(`/api/interns/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...intern, status: 'approved' })
+      });
       setPendingInterns((prev) => prev.filter((i) => i.id !== id));
-      if (approved) {
-        setApprovedInterns((prev) => [...prev, { ...approved, status: 'approved' }]);
-      }
+      setApprovedInterns((prev) => [...prev, { ...intern, status: 'approved' }]);
     } catch (err) {
       alert(`Approval failed: ${err.message}`);
     }
@@ -58,7 +64,9 @@ const AdminLayout = ({ onLogout }) => {
 
   const handleReject = async (id) => {
     try {
-      await rejectIntern(id);
+      await apiFetch(`/api/interns/${id}`, {
+        method: 'DELETE'
+      });
       setPendingInterns((prev) => prev.filter((i) => i.id !== id));
     } catch (err) {
       alert(`Rejection failed: ${err.message}`);

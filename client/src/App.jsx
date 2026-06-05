@@ -4,14 +4,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminLayout from './components/admin/AdminLayout';
 import InternLayout from './components/intern/InternLayout';
-import { mockInterns } from './mockData';
-import * as authService from './services/authService';
-import * as internService from './services/internService';
-import * as projectService from './services/projectService';
-import * as taskService from './services/taskService';
+import { apiFetch, getRole, getPhotoUrl } from './services/api';
 
 function App() {
   const [page, setPage] = useState('login'); // 'login' | 'register' | 'admin' | 'intern'
+  const [userRole, setUserRole] = useState(null);
   
   // Registration Stepper States
   const [currentStep, setCurrentStep] = useState(1);
@@ -42,8 +39,8 @@ function App() {
   // Sync currentView and userRole state with the browser history
   useEffect(() => {
     const currentView = page;
-    const userRole = page === 'admin' ? 'admin' : (page === 'intern' ? 'intern' : 'guest');
-    const state = { userRole, currentView };
+    const role = page === 'admin' ? 'admin' : (page === 'intern' ? 'intern' : 'guest');
+    const state = { userRole: role, currentView };
     if (!window.history.state || window.history.state.currentView !== currentView) {
       window.history.pushState(state, '');
     }
@@ -54,97 +51,111 @@ function App() {
     const handlePop = (e) => {
       if (e.state && e.state.currentView) {
         setPage(e.state.currentView);
+        if (e.state.userRole) {
+          setUserRole(e.state.userRole);
+        }
       }
     };
     window.addEventListener('popstate', handlePop);
     return () => window.removeEventListener('popstate', handlePop);
   }, []);
 
-  // Check active Supabase Session upon mount
+  // On app load — restore session from localStorage
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const user = await authService.getCurrentUser();
-        if (user) {
-          const profile = await authService.getUserRole(user.id);
-          if (profile) {
-            if (profile.role === 'admin') {
-              setPage('admin');
-              await loadInterns();
-            } else if (profile.role === 'intern') {
-              try {
-                const status = await authService.getInternStatus(profile.intern_id);
-                if (status === 'approved') {
-                  setPage('intern');
-                } else {
-                  console.warn(`Session check: Intern status is ${status}. Logging out.`);
-                  await authService.logout();
-                  setPage('login');
-                }
-              } catch (statusErr) {
-                console.error('Session check: Failed to check intern status. Logging out.', statusErr.message);
-                await authService.logout();
-                setPage('login');
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.log('Session check skipped or offline:', err.message);
-        // Default load for offline/fallback environment
-        await loadInterns();
+    const role = getRole()
+    const token = localStorage.getItem('token')
+    if (role && token) {
+      setUserRole(role)
+      setPage(role)
+      if (role === 'admin') {
+        loadInterns();
       }
-    };
-    checkSession();
-  }, []);
+    } else {
+      setPage('login');
+      setUserRole(null);
+    }
+  }, [])
 
   const loadInterns = async () => {
     try {
-      const data = await internService.getAllInterns();
-      if (!data) throw new Error('No data received from Supabase');
+      const allInterns = await apiFetch('/api/interns');
       
-      const formatted = data.map(intern => ({
-        ...intern,
-        collegeName: intern.college_name || '',
-        startingDate: intern.starting_date || '',
-        endingDate: intern.ending_date || '',
-        photo: intern.photo_url || null,
-        project: intern.projects?.[0] || { title: '', description: '', gitRepoLink: '', liveProjectLink: '' },
-        tasks: intern.tasks || []
+      const formatted = await Promise.all(allInterns.map(async (intern) => {
+        let project = { title: '', description: '', gitRepoLink: '', liveProjectLink: '' };
+        let tasks = [];
+        try {
+          const projData = await apiFetch(`/api/projects/intern/${intern.id}`);
+          if (projData) {
+            project = {
+              title: projData.title || '',
+              description: projData.description || '',
+              gitRepoLink: projData.git_repo_link || '',
+              liveProjectLink: projData.live_project_link || ''
+            };
+          }
+          const tasksData = await apiFetch(`/api/tasks/intern/${intern.id}`);
+          if (tasksData) {
+            tasks = tasksData.reverse().map(t => ({
+              id: t.id,
+              title: t.title,
+              description: t.description || '',
+              dueDate: t.expected_date || '',
+              submissionDate: t.submission_date || ''
+            }));
+          }
+        } catch (err) {
+          console.error(`Error loading details for intern ${intern.id}:`, err);
+        }
+
+        return {
+          ...intern,
+          collegeName: intern.college_name || '',
+          startingDate: intern.starting_date || '',
+          endingDate: intern.ending_date || '',
+          photo: intern.photo_mime_type ? getPhotoUrl(intern.id) : null,
+          project,
+          tasks
+        };
       }));
+      
       setInterns(formatted);
     } catch (err) {
-      console.warn('Supabase fetch failed, falling back to local mock dataset:', err.message);
-      setInterns(mockInterns);
+      console.error('Fetch failed:', err.message);
+      setInterns([]);
     }
   };
 
   const handleUpdateIntern = async (id, updatedFields) => {
-    let photoUrl = updatedFields.photo;
-    
-    // Upload base64 photos to storage bucket
-    if (updatedFields.photo && updatedFields.photo.startsWith('data:')) {
-      try {
-        photoUrl = await internService.uploadPhoto(updatedFields.photo, id);
-      } catch (err) {
-        console.error('Storage photo upload failed:', err);
-      }
-    }
-
-    const dbUpdates = {};
-    if (updatedFields.name !== undefined) dbUpdates.name = updatedFields.name;
-    if (updatedFields.collegeName !== undefined) dbUpdates.college_name = updatedFields.collegeName;
-    if (updatedFields.dept !== undefined) dbUpdates.dept = updatedFields.dept;
-    if (updatedFields.year !== undefined) dbUpdates.year = updatedFields.year;
-    if (updatedFields.sem !== undefined) dbUpdates.sem = updatedFields.sem;
-    if (updatedFields.mail !== undefined) dbUpdates.mail = updatedFields.mail;
-    if (updatedFields.number !== undefined) dbUpdates.number = updatedFields.number;
-    if (updatedFields.startingDate !== undefined) dbUpdates.starting_date = updatedFields.startingDate;
-    if (updatedFields.endingDate !== undefined) dbUpdates.ending_date = updatedFields.endingDate;
-    if (photoUrl !== undefined) dbUpdates.photo_url = photoUrl;
-
     try {
-      await internService.updateIntern(id, dbUpdates);
+      const current = await apiFetch(`/api/interns/${id}`);
+      
+      const merged = {
+        name: updatedFields.name !== undefined ? updatedFields.name : current.name,
+        college_name: updatedFields.collegeName !== undefined ? updatedFields.collegeName : current.college_name,
+        dept: updatedFields.dept !== undefined ? updatedFields.dept : current.dept,
+        year: updatedFields.year !== undefined ? parseInt(updatedFields.year, 10) : current.year,
+        sem: updatedFields.sem !== undefined ? parseInt(updatedFields.sem, 10) : current.sem,
+        mail: updatedFields.mail !== undefined ? updatedFields.mail : current.mail,
+        number: updatedFields.number !== undefined ? updatedFields.number : current.number,
+        starting_date: updatedFields.startingDate !== undefined ? updatedFields.startingDate : current.starting_date,
+        ending_date: updatedFields.endingDate !== undefined ? updatedFields.endingDate : current.ending_date,
+        batch_number: updatedFields.batchNumber !== undefined ? updatedFields.batchNumber : current.batch_number,
+        status: updatedFields.status !== undefined ? updatedFields.status : current.status,
+        profile_visible: updatedFields.profileVisible !== undefined ? updatedFields.profileVisible : current.profile_visible
+      };
+
+      if (updatedFields.photo && updatedFields.photo.startsWith('data:')) {
+        const match = updatedFields.photo.match(/data:([^;]+);base64,/);
+        if (match) {
+          merged.photo_mime_type = match[1];
+        }
+        merged.photo = updatedFields.photo.split(';base64,')[1];
+      }
+
+      await apiFetch(`/api/interns/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(merged)
+      });
     } catch (err) {
       console.warn('Database save skipped, updating local memory state:', err.message);
     }
@@ -152,7 +163,6 @@ function App() {
     setInterns(prev => prev.map(intern => {
       if (intern.id === id) {
         const updated = { ...intern, ...updatedFields };
-        if (photoUrl !== undefined) updated.photo = photoUrl;
         if (selectedIntern && selectedIntern.id === id) {
           setSelectedIntern(updated);
         }
@@ -163,15 +173,17 @@ function App() {
   };
 
   const handleAssignProject = async (id, projectData) => {
-    const dbProject = {
-      title: projectData.title,
-      description: projectData.description,
-      git_repo_link: projectData.gitRepoLink,
-      live_project_link: projectData.liveProjectLink
-    };
-
     try {
-      await projectService.assignProject(id, dbProject);
+      await apiFetch('/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({
+          intern_id: id,
+          title: projectData.title,
+          description: projectData.description,
+          git_repo_link: projectData.gitRepoLink,
+          live_project_link: projectData.liveProjectLink
+        })
+      });
     } catch (err) {
       console.warn('Database project upsert skipped, updating local memory state:', err.message);
     }
@@ -192,25 +204,26 @@ function App() {
   };
 
   const handleAddTask = async (id, task) => {
-    const dbTask = {
-      title: task.title,
-      description: task.description,
-      due_date: task.dueDate,
-      submission_date: task.submissionDate || null
-    };
-
     let savedTask = {
       ...task,
       id: `task-${id}-${Date.now()}`
     };
 
     try {
-      const res = await taskService.addTask(id, dbTask);
+      const res = await apiFetch('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          intern_id: id,
+          title: task.title,
+          expected_date: task.dueDate,
+          upcoming_task: false
+        })
+      });
       savedTask = {
         id: res.id,
         title: res.title,
-        description: res.description,
-        dueDate: res.due_date,
+        description: res.description || '',
+        dueDate: res.expected_date || '',
         submissionDate: res.submission_date || ''
       };
     } catch (err) {
@@ -233,15 +246,16 @@ function App() {
   };
 
   const handleEditTask = async (internId, taskId, updatedTask) => {
-    const dbUpdates = {
-      title: updatedTask.title,
-      description: updatedTask.description,
-      due_date: updatedTask.dueDate,
-      submission_date: updatedTask.submissionDate || null
-    };
-
     try {
-      await taskService.editTask(taskId, dbUpdates);
+      await apiFetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: updatedTask.status || 'not_started',
+          submission_date: updatedTask.submissionDate || null,
+          title: updatedTask.title,
+          expected_date: updatedTask.dueDate
+        })
+      });
     } catch (err) {
       console.warn('Database task update skipped, updating local memory state:', err.message);
     }
@@ -263,7 +277,9 @@ function App() {
 
   const handleDeleteTask = async (internId, taskId) => {
     try {
-      await taskService.deleteTask(taskId);
+      await apiFetch(`/api/tasks/${taskId}`, {
+        method: 'DELETE'
+      });
     } catch (err) {
       console.warn('Database task delete skipped, updating local memory state:', err.message);
     }
@@ -283,16 +299,34 @@ function App() {
     }));
   };
 
-  const handleTogglePage = async () => {
+  const handleLogin = async (email, password) => {
+    const data = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('role', data.role);
+    localStorage.setItem('intern_id', data.intern_id);
+    setUserRole(data.role);
+    setPage(data.role);
+    if (data.role === 'admin') {
+      await loadInterns();
+    }
+    return data;
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    localStorage.removeItem('intern_id');
+    setUserRole(null);
+    setPage('login');
+  };
+
+  const handleTogglePage = () => {
     if (page === 'admin' || page === 'intern') {
-      try {
-        await authService.logout();
-      } catch (err) {
-        console.log('Logout skip:', err.message);
-      }
-      setPage('login');
+      handleLogout();
     } else if (page === 'login') {
-      // Clear out and reset registration state when entering Register view
       setCurrentStep(1);
       setSubmitted(false);
       setFormData({
@@ -317,31 +351,18 @@ function App() {
     }
   };
 
-  const handleLoginSuccess = async (role, email) => {
-    if (role === 'admin') {
-      setPage('admin');
-      await loadInterns();
-    } else if (role === 'intern') {
-      setPage('intern');
-    } else {
-      alert(`Logging in as: ${email}`);
-    }
-  };
-
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      {/* Global Header (Only show on login and register views) */}
       {(page === 'login' || page === 'register') && (
         <Header mode={page} onActionClick={handleTogglePage} />
       )}
       
-      {/* Conditionally Render Pages */}
       {page === 'admin' ? (
-        <AdminLayout onLogout={handleTogglePage} />
+        <AdminLayout onLogout={handleLogout} />
       ) : page === 'intern' ? (
-        <InternLayout onLogout={handleTogglePage} />
+        <InternLayout onLogout={handleLogout} />
       ) : page === 'login' ? (
-        <Login onLogin={handleLoginSuccess} onRegisterClick={handleTogglePage} />
+        <Login onLogin={handleLogin} onRegisterClick={handleTogglePage} />
       ) : (
         <Register 
           currentStep={currentStep}
