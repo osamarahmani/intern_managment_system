@@ -77,7 +77,7 @@ const InternLayout = ({ onLogout }) => {
   const handleUpdateTaskStatus = async (taskId, newStatus, submissionDate = null) => {
     try {
       const updatedTask = await updateTaskStatus(taskId, newStatus, submissionDate);
-      
+
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? updatedTask : t))
       );
@@ -275,30 +275,30 @@ const InternLayout = ({ onLogout }) => {
         ) : (
           <>
             {activePage === 'profile' && (
-              <InternProfilePage 
-                internData={internData} 
+              <InternProfilePage
+                internData={internData}
                 internName={internData?.name || ''}
                 avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'project' && (
-              <InternProjectPage 
-                project={project} 
+              <InternProjectPage
+                project={project}
                 internName={internData?.name || ''}
                 avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'tasks' && (
-              <InternTasksPage 
-                tasks={tasks} 
+              <InternTasksPage
+                tasks={tasks}
                 internId={internData?.id}
-                onUpdateTaskStatus={handleUpdateTaskStatus} 
+                onUpdateTaskStatus={handleUpdateTaskStatus}
                 internName={internData?.name || ''}
                 avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'directory' && (
-              <BatchDirectory 
+              <BatchDirectory
                 internId={internData?.id}
                 supabase={supabase}
                 internName={internData?.name || ''}

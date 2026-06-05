@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../supabase/client';
 import { formatDate } from '../../utils/formatDate';
+import * as XLSX from 'xlsx';
 
 const thStyle = {
   padding: '10px 16px',
@@ -98,6 +99,7 @@ const ApprovedInterns = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [savedVisibility, setSavedVisibility] = useState({});
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Batch Summary Card States
   const [summaryBatch, setSummaryBatch] = useState(null);
@@ -278,6 +280,103 @@ const ApprovedInterns = () => {
       console.error('Error fetching batch summary:', err.message);
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const handleExport = async (batchNumber = null) => {
+    setExportLoading(true);
+    try {
+      // 1. Fetch interns
+      let internsQuery = supabase
+        .from('interns')
+        .select('*')
+        .eq('status', 'approved');
+
+      if (batchNumber) {
+        internsQuery = internsQuery.eq('batch_number', batchNumber);
+      }
+
+      const { data: interns, error: internsErr } = await internsQuery;
+      if (internsErr) throw internsErr;
+
+      if (!interns || interns.length === 0) {
+        alert('No interns found to export.');
+        setExportLoading(false);
+        return;
+      }
+
+      const internIds = interns.map(i => i.id);
+
+      // 2. Fetch projects
+      const { data: projects, error: projectsErr } = await supabase
+        .from('projects')
+        .select('*')
+        .in('intern_id', internIds);
+      if (projectsErr) throw projectsErr;
+
+      // 3. Fetch tasks
+      const { data: tasks, error: tasksErr } = await supabase
+        .from('tasks')
+        .select('*')
+        .in('intern_id', internIds);
+      if (tasksErr) throw tasksErr;
+
+      // 4. Build lookup maps
+      const internMap = {};
+      interns.forEach(i => { internMap[i.id] = i; });
+
+      // 5. Sheet 1 — Interns
+      const internSheet = interns.map(i => ({
+        'Name': i.name,
+        'Email': i.mail,
+        'Phone': i.number,
+        'College': i.college_name,
+        'Department': i.dept,
+        'Year': i.year,
+        'Semester': i.sem,
+        'Batch': i.batch_number,
+        'Starting Date': i.starting_date,
+        'Ending Date': i.ending_date,
+        'Status': i.status
+      }));
+
+      // 6. Sheet 2 — Projects
+      const projectSheet = (projects || []).map(p => ({
+        'Intern Name': internMap[p.intern_id]?.name || '—',
+        'Batch': internMap[p.intern_id]?.batch_number || '—',
+        'Project Title': p.title,
+        'Description': p.description,
+        'Git Repo': p.git_repo_link || '—',
+        'Live Link': p.live_project_link || '—'
+      }));
+
+      // 7. Sheet 3 — Tasks
+      const taskSheet = (tasks || []).map(t => ({
+        'Intern Name': internMap[t.intern_id]?.name || '—',
+        'Batch': internMap[t.intern_id]?.batch_number || '—',
+        'Task Title': t.title,
+        'Expected Date': t.expected_date,
+        'Submission Date': t.submission_date || '—',
+        'Status': t.status,
+        'Upcoming Task': t.upcoming_task || '—'
+      }));
+
+      // 8. Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(internSheet), 'Interns');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(projectSheet), 'Projects');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(taskSheet), 'Tasks');
+
+      // 9. File name
+      const fileName = batchNumber
+        ? `Batch_${batchNumber}_Export_${new Date().toISOString().split('T')[0]}.xlsx`
+        : `All_Batches_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      alert('Export failed: ' + err.message);
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -663,8 +762,37 @@ const ApprovedInterns = () => {
           ========================================================================== */}
       {activeView === 'batches' && (
         <div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#111111', margin: 0 }}>Batch Management</h2>
+            <button
+              type="button"
+              onClick={() => !exportLoading && handleExport(null)}
+              disabled={exportLoading}
+              style={{
+                background: '#3D35C4',
+                color: '#fff',
+                borderRadius: '8px',
+                padding: '9px 18px',
+                fontSize: '13px',
+                fontWeight: 600,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                border: 'none',
+                cursor: exportLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                opacity: exportLoading ? 0.7 : 1,
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (!exportLoading) e.currentTarget.style.background = '#2A259A';
+              }}
+              onMouseLeave={(e) => {
+                if (!exportLoading) e.currentTarget.style.background = '#3D35C4';
+              }}
+            >
+              {exportLoading ? 'Exporting...' : '⬇ Export All Batches'}
+            </button>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px', alignItems: 'start' }}>
@@ -1366,28 +1494,60 @@ const ApprovedInterns = () => {
               <p style={{ fontSize: '14px', color: '#757575', margin: 0 }}>Batch: <strong>{selectedBatch.batch_number}</strong></p>
             </div>
 
-            <button
-              onClick={() => {
-                setActiveView('batches');
-                setSelectedBatch(null);
-                setSelectedIntern(null);
-              }}
-              style={{
-                background: '#FFFFFF',
-                color: '#757575',
-                border: '1px solid #E0E0E0',
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontWeight: '600',
-                fontSize: '13px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              ← Back to Batches
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => !exportLoading && handleExport(selectedBatch.batch_number)}
+                disabled={exportLoading}
+                style={{
+                  background: '#fff',
+                  color: '#3D35C4',
+                  border: '2px solid #3D35C4',
+                  borderRadius: '8px',
+                  padding: '7px 16px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  cursor: exportLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: exportLoading ? 0.7 : 1,
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!exportLoading) e.currentTarget.style.background = '#F0EEFF';
+                }}
+                onMouseLeave={(e) => {
+                  if (!exportLoading) e.currentTarget.style.background = '#fff';
+                }}
+              >
+                {exportLoading ? 'Exporting...' : '⬇ Export Batch'}
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveView('batches');
+                  setSelectedBatch(null);
+                  setSelectedIntern(null);
+                }}
+                style={{
+                  background: '#FFFFFF',
+                  color: '#757575',
+                  border: '1px solid #E0E0E0',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                ← Back to Batches
+              </button>
+            </div>
           </div>
 
           {/* Draggable Resizable Split Panel Container */}
