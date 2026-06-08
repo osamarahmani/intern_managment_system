@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import BasicInfoSection from './sections/BasicInfoSection';
 import ProjectSection from './sections/ProjectSection';
 import TaskSection from './sections/TaskSection';
+import InternAvatar from '../InternAvatar';
 
 const InternModal = ({
   intern,
@@ -35,11 +36,7 @@ const InternModal = ({
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        onUpdateIntern(intern.id, { photo: reader.result });
-      };
-      reader.readAsDataURL(file);
+      onUpdateIntern(intern.id, { photoFile: file });
     }
   };
 
@@ -102,17 +99,11 @@ const InternModal = ({
         {/* Left Column (30%) - Purple Branding & Photo */}
         <div className="modal-col-left">
           <div className="modal-left-avatar-container">
-            {intern.photo ? (
-              <img 
-                src={intern.photo} 
-                alt={`Avatar of ${intern.name}`} 
-                className="modal-left-avatar-img" 
-              />
-            ) : (
-              <div className="modal-left-avatar-initials" aria-hidden="true">
-                {initials}
-              </div>
-            )}
+            <InternAvatar
+              photoUrl={intern.photo}
+              name={intern.name}
+              size={100}
+            />
           </div>
 
           <h3 id="modal-title" className="modal-left-name">{intern.name}</h3>

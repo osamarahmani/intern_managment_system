@@ -36,38 +36,32 @@ const Register = ({
     setErrorMsg('');
 
     try {
-      // Convert photo to base64 if exists
-      let photoBase64 = null;
-      let photoMimeType = null;
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.name);
+      formDataToSend.append('college_name', formData.collegeName);
+      formDataToSend.append('dept', formData.dept);
+      formDataToSend.append('year', formData.year);
+      formDataToSend.append('sem', formData.sem);
+      formDataToSend.append('mail', formData.mail);
+      formDataToSend.append('number', formData.number);
+      formDataToSend.append('starting_date', formData.startingDate || new Date().toISOString().split('T')[0]);
+      formDataToSend.append('ending_date', formData.endingDate || new Date().toISOString().split('T')[0]);
+      formDataToSend.append('batch_number', formData.batchNumber);
+      formDataToSend.append('registration_key', formData.registrationKey);
+      formDataToSend.append('password', formData.password);
+
       if (formData.photo instanceof File) {
-        photoMimeType = formData.photo.type;
-        photoBase64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result.split(',')[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(formData.photo);
-        });
+        formDataToSend.append('photo', formData.photo);
       }
 
-      await apiFetch('/api/auth/register', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/auth/register`, {
         method: 'POST',
-        body: JSON.stringify({
-          name: formData.name,
-          college_name: formData.collegeName,
-          dept: formData.dept,
-          year: parseInt(formData.year, 10),
-          sem: parseInt(formData.sem, 10),
-          mail: formData.mail,
-          number: formData.number,
-          starting_date: formData.startingDate || new Date().toISOString().split('T')[0],
-          ending_date: formData.endingDate || new Date().toISOString().split('T')[0],
-          batch_number: formData.batchNumber,
-          registration_key: formData.registrationKey,
-          password: formData.password,
-          photo: photoBase64,
-          photo_mime_type: photoMimeType
-        })
+        body: formDataToSend
       });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Registration failed');
       setSubmitted(true);
     } catch (err) {
       setErrorMsg(err.message);

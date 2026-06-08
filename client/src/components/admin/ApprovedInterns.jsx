@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { apiFetch, getPhotoUrl } from '../../services/api';
+import { apiFetch } from '../../services/api';
 import { formatDate } from '../../utils/formatDate';
+import InternAvatar from '../InternAvatar';
 import * as XLSX from 'xlsx';
 
 const thStyle = {
@@ -81,6 +82,7 @@ const ApprovedInterns = () => {
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef(null);
   const dragRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Database Record States
   const [batches, setBatches] = useState([]);
@@ -497,6 +499,52 @@ const ApprovedInterns = () => {
       alert('Failed to save: ' + err.message);
     } finally {
       setSavingDetails(false);
+    }
+  };
+
+  const handlePhotoUpload = async (file) => {
+    if (!selectedIntern || !file) return;
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('photo', file);
+
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`${apiUrl}/api/interns/${selectedIntern.id}/photo`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formDataToSend
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to upload photo');
+
+      // Update the local selected intern's photo_url
+      const updatedIntern = { ...selectedIntern, photo_url: data.photoUrl };
+      setSelectedIntern(updatedIntern);
+      
+      // Update in the list of interns
+      setInterns(prev => prev.map(i => i.id === selectedIntern.id ? updatedIntern : i));
+      
+      alert('Profile photo updated successfully!');
+    } catch (err) {
+      alert('Photo upload failed: ' + err.message);
+    }
+  };
+
+  const handlePhotoClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      await handlePhotoUpload(file);
     }
   };
 
@@ -1136,37 +1184,11 @@ const ApprovedInterns = () => {
                         alignItems: 'center',
                         gap: '12px'
                       }}>
-                        {summaryStats.topPerformer.photo_mime_type ? (
-                          <img
-                            src={getPhotoUrl(summaryStats.topPerformer.id)}
-                            alt={summaryStats.topPerformer.name}
-                            style={{
-                              width: '44px',
-                              height: '44px',
-                              borderRadius: '50%',
-                              objectFit: 'cover',
-                              flexShrink: 0
-                            }}
-                          />
-                        ) : (
-                          <div style={{
-                            width: '44px',
-                            height: '44px',
-                            borderRadius: '50%',
-                            background: '#3D35C4',
-                            color: '#fff',
-                            fontSize: '16px',
-                            fontWeight: '700',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}>
-                            {summaryStats.topPerformer.name
-                              ? summaryStats.topPerformer.name.split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                              : 'IN'}
-                          </div>
-                        )}
+                        <InternAvatar
+                          photoUrl={summaryStats.topPerformer.photo_url}
+                          name={summaryStats.topPerformer.name}
+                          size={44}
+                        />
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#3D35C4' }}>
                             {summaryStats.topPerformer.name}
@@ -1559,37 +1581,11 @@ const ApprovedInterns = () => {
                         className={`intern-list-item ${isSelected ? 'active' : ''}`}
                       >
                         {/* Avatar */}
-                        {intern.photo_mime_type ? (
-                          <img
-                            src={getPhotoUrl(intern.id)}
-                            alt={intern.name}
-                            style={{
-                              width: '40px',
-                              height: '40px',
-                              borderRadius: '50%',
-                              objectFit: 'cover',
-                              flexShrink: 0
-                            }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: '40px',
-                              height: '40px',
-                              borderRadius: '50%',
-                              background: '#3D35C4',
-                              color: '#FFFFFF',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: '600',
-                              fontSize: '14px',
-                              flexShrink: 0
-                            }}
-                          >
-                            {initials}
-                          </div>
-                        )}
+                        <InternAvatar
+                          photoUrl={intern.photo_url}
+                          name={intern.name}
+                          size={40}
+                        />
 
                         {/* Info details */}
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
@@ -1729,37 +1725,12 @@ const ApprovedInterns = () => {
                           marginBottom: '20px'
                         }}>
                           {/* Circular avatar */}
-                          {selectedIntern.photo_mime_type ? (
-                            <img
-                              src={getPhotoUrl(selectedIntern.id)}
-                              alt={selectedIntern.name}
-                              style={{
-                                width: '80px',
-                                height: '80px',
-                                borderRadius: '50%',
-                                objectFit: 'cover',
-                                border: '3px solid #EEEEEE',
-                                flexShrink: 0
-                              }}
-                            />
-                          ) : (
-                            <div style={{
-                              width: '80px',
-                              height: '80px',
-                              borderRadius: '50%',
-                              background: '#3D35C4',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '28px',
-                              fontWeight: '600',
-                              color: '#FFFFFF',
-                              flexShrink: 0,
-                              border: '3px solid #EEEEEE'
-                            }}>
-                              {selectedIntern.name?.charAt(0).toUpperCase()}
-                            </div>
-                          )}
+                          <InternAvatar
+                            photoUrl={selectedIntern.photo_url}
+                            name={selectedIntern.name}
+                            size={80}
+                            style={{ border: '3px solid #EEEEEE' }}
+                          />
 
                           {/* Name and dept next to photo */}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1776,19 +1747,46 @@ const ApprovedInterns = () => {
                             }}>
                               {selectedIntern.dept} — {selectedIntern.college_name}
                             </span>
-                            <span style={{
-                              fontSize: '11px',
-                              background: '#E6F4EA',
-                              color: '#137333',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontWeight: '700',
-                              textTransform: 'uppercase',
-                              alignSelf: 'flex-start',
-                              marginTop: '2px'
-                            }}>
-                              {selectedIntern.status}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+                              <span style={{
+                                fontSize: '11px',
+                                background: '#E6F4EA',
+                                color: '#137333',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: '700',
+                                textTransform: 'uppercase',
+                                alignSelf: 'flex-start'
+                              }}>
+                                {selectedIntern.status}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={handlePhotoClick}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#3D35C4',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer',
+                                  padding: '0',
+                                  textDecoration: 'underline',
+                                  fontFamily: 'inherit'
+                                }}
+                              >
+                                Change Photo
+                              </button>
+                              <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handlePhotoChange}
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                aria-label="Upload new profile picture"
+                              />
+                            </div>
                           </div>
                         </div>
 

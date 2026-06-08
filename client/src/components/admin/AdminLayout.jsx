@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import ApprovedInterns from './ApprovedInterns';
 import PendingApprovals from './PendingApprovals';
-import { apiFetch, getPhotoUrl } from '../../services/api';
+import { apiFetch } from '../../services/api';
 import './AdminLayout.css';
 
 const AdminLayout = ({ onLogout }) => {
@@ -35,10 +35,7 @@ const AdminLayout = ({ onLogout }) => {
     setLoading(true);
     try {
       const allInterns = await apiFetch('/api/interns');
-      const pending = allInterns.filter((i) => i.status === 'pending').map((intern) => ({
-        ...intern,
-        photo: intern.photo_mime_type ? getPhotoUrl(intern.id) : null
-      }));
+      const pending = allInterns.filter((i) => i.status === 'pending');
       setPendingInterns(pending || []);
     } catch (err) {
       console.error('Error fetching pending registrations:', err.message);

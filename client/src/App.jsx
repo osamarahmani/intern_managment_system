@@ -4,7 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminLayout from './components/admin/AdminLayout';
 import InternLayout from './components/intern/InternLayout';
-import { apiFetch, getRole, getPhotoUrl } from './services/api';
+import { apiFetch, getRole } from './services/api';
 
 function App() {
   const [page, setPage] = useState('login'); // 'login' | 'register' | 'admin' | 'intern'
@@ -112,7 +112,7 @@ function App() {
           collegeName: intern.college_name || '',
           startingDate: intern.starting_date || '',
           endingDate: intern.ending_date || '',
-          photo: intern.photo_mime_type ? getPhotoUrl(intern.id) : null,
+          photo: intern.photo_url || null,
           project,
           tasks
         };
@@ -126,7 +126,27 @@ function App() {
   };
 
   const handleUpdateIntern = async (id, updatedFields) => {
+    let photoUrl = updatedFields.photo;
+
     try {
+      if (updatedFields.photoFile) {
+        const formDataToSend = new FormData();
+        formDataToSend.append('photo', updatedFields.photoFile);
+
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const token = localStorage.getItem('token');
+        const photoRes = await fetch(`${apiUrl}/api/interns/${id}/photo`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formDataToSend
+        });
+        const photoData = await photoRes.json();
+        if (!photoRes.ok) throw new Error(photoData.error || 'Failed to upload photo');
+        photoUrl = photoData.photoUrl;
+      }
+
       const current = await apiFetch(`/api/interns/${id}`);
       
       const merged = {
@@ -141,16 +161,9 @@ function App() {
         ending_date: updatedFields.endingDate !== undefined ? updatedFields.endingDate : current.ending_date,
         batch_number: updatedFields.batchNumber !== undefined ? updatedFields.batchNumber : current.batch_number,
         status: updatedFields.status !== undefined ? updatedFields.status : current.status,
-        profile_visible: updatedFields.profileVisible !== undefined ? updatedFields.profileVisible : current.profile_visible
+        profile_visible: updatedFields.profileVisible !== undefined ? updatedFields.profileVisible : current.profile_visible,
+        photo_url: photoUrl !== undefined ? photoUrl : current.photo_url
       };
-
-      if (updatedFields.photo && updatedFields.photo.startsWith('data:')) {
-        const match = updatedFields.photo.match(/data:([^;]+);base64,/);
-        if (match) {
-          merged.photo_mime_type = match[1];
-        }
-        merged.photo = updatedFields.photo.split(';base64,')[1];
-      }
 
       await apiFetch(`/api/interns/${id}`, {
         method: 'PUT',
@@ -162,7 +175,12 @@ function App() {
 
     setInterns(prev => prev.map(intern => {
       if (intern.id === id) {
-        const updated = { ...intern, ...updatedFields };
+        const updated = { 
+          ...intern, 
+          ...updatedFields,
+          photo: photoUrl !== undefined ? photoUrl : intern.photo
+        };
+        delete updated.photoFile;
         if (selectedIntern && selectedIntern.id === id) {
           setSelectedIntern(updated);
         }

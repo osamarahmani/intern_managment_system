@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../../../utils/formatDate';
-import { apiFetch, getPhotoUrl } from '../../../services/api';
+import { apiFetch } from '../../../services/api';
+import InternAvatar from '../../InternAvatar';
 
 const BatchDirectory = ({ internId, internName, avatarUrl }) => {
   const [loading, setLoading] = useState(true);
@@ -302,36 +303,11 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
                     transition: 'background 0.2s'
                   }}
                 >
-                  {/* Circular avatar */}
-                  {mate.photo_mime_type ? (
-                    <img
-                      src={getPhotoUrl(mate.id)}
-                      alt={mate.name}
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        objectFit: 'cover',
-                        flexShrink: 0
-                      }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      background: '#3D35C4',
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      flexShrink: 0
-                    }}>
-                      {initials}
-                    </div>
-                  )}
+                  <InternAvatar
+                    photoUrl={mate.photo_url}
+                    name={mate.name}
+                    size={40}
+                  />
 
                   {/* Right side */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', flex: 1 }}>
@@ -446,38 +422,14 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
                           gap: '16px',
                           marginBottom: '28px'
                         }}>
-                          {/* Avatar */}
-                          {selectedTeammate.photo_mime_type ? (
-                            <img
-                              src={getPhotoUrl(selectedTeammate.id)}
-                              alt={selectedTeammate.name}
-                              style={{
-                                width: '80px',
-                                height: '80px',
-                                borderRadius: '50%',
-                                objectFit: 'cover',
-                                border: '3px solid #EEEEEE',
-                                flexShrink: 0
-                              }}
-                            />
-                          ) : (
-                            <div style={{
-                              width: '80px',
-                              height: '80px',
-                              borderRadius: '50%',
-                              background: '#3D35C4',
-                              color: '#fff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '28px',
-                              fontWeight: '600',
+                          <InternAvatar
+                            photoUrl={selectedTeammate.photo_url}
+                            name={selectedTeammate.name}
+                            size={80}
+                            style={{
                               border: '3px solid #EEEEEE',
-                              flexShrink: 0
-                            }}>
-                              {selectedTeammate.name?.charAt(0).toUpperCase()}
-                            </div>
-                          )}
+                            }}
+                          />
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <span style={{ fontSize: '20px', fontWeight: '700', color: '#212121' }}>

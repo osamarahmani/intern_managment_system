@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { apiFetch, getInternId, getPhotoUrl } from '../../services/api';
+import { apiFetch, getInternId } from '../../services/api';
 import './InternLayout.css';
+import InternAvatar from '../InternAvatar';
 
 // We import subpages directly
 import InternProfilePage from './pages/InternProfile';
@@ -174,35 +175,14 @@ const InternLayout = ({ onLogout }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           {/* Intern avatar + name */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {internData?.photo_mime_type ? (
-              <img
-                src={getPhotoUrl(internData.id)}
-                alt={internData.name}
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  flexShrink: 0
-                }}
-              />
-            ) : (
-              <div style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)',
-                color: '#fff',
-                fontSize: '13px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}>
-                {initials}
-              </div>
-            )}
+            <InternAvatar
+              photoUrl={internData?.photo_url}
+              name={internData?.name}
+              size={34}
+              style={{
+                border: '1.5px solid rgba(255, 255, 255, 0.25)',
+              }}
+            />
             <span style={{
               color: '#fff',
               fontSize: '14px',
@@ -265,14 +245,14 @@ const InternLayout = ({ onLogout }) => {
               <InternProfilePage
                 internData={internData}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_mime_type ? getPhotoUrl(internData.id) : ''}
+                avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'project' && (
               <InternProjectPage
                 project={project}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_mime_type ? getPhotoUrl(internData.id) : ''}
+                avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'tasks' && (
@@ -281,14 +261,14 @@ const InternLayout = ({ onLogout }) => {
                 internId={internData?.id}
                 onUpdateTaskStatus={handleUpdateTaskStatus}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_mime_type ? getPhotoUrl(internData.id) : ''}
+                avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'directory' && (
               <BatchDirectory
                 internId={internData?.id}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_mime_type ? getPhotoUrl(internData.id) : ''}
+                avatarUrl={internData?.photo_url || ''}
               />
             )}
           </>

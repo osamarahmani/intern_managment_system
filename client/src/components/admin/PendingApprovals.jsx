@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatDate } from '../../utils/formatDate';
 import PendingModal from './PendingModal';
+import InternAvatar from '../InternAvatar';
 
 const PendingApprovals = ({ pendingInterns = [], onApprove, onReject }) => {
   const [selectedIntern, setSelectedIntern] = useState(null);
@@ -75,17 +76,15 @@ const PendingApprovals = ({ pendingInterns = [], onApprove, onReject }) => {
             >
               {/* Card Header */}
               <div className="pending-card-header">
-                {intern.photo_url || intern.photo ? (
-                  <img 
-                    src={intern.photo_url || intern.photo} 
-                    alt={`${intern.name}'s Avatar`} 
-                    className="pending-card-avatar"
-                  />
-                ) : (
-                  <div className="pending-card-avatar-placeholder" aria-hidden="true">
-                    {getInitials(intern.name)}
-                  </div>
-                )}
+                <InternAvatar
+                  photoUrl={intern.photo_url || intern.photo}
+                  name={intern.name}
+                  size={48}
+                  style={{
+                    border: '2px solid #FFE0B2',
+                    backgroundColor: '#FAFAFA'
+                  }}
+                />
                 <span className="pending-card-badge">Pending</span>
               </div>
 

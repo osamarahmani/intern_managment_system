@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatDate } from '../../../utils/formatDate';
-import { getPhotoUrl } from '../../../services/api';
+import InternAvatar from '../../InternAvatar';
 
 const InternProfile = ({ internData }) => {
   if (!internData) return null;
@@ -26,24 +26,14 @@ const InternProfile = ({ internData }) => {
         padding: '40px 24px'
       }}>
         {/* Avatar */}
-        {internData.photo_mime_type ? (
-          <img src={getPhotoUrl(internData.id)} alt={internData.name} style={{
-            width: '120px', height: '120px',
-            borderRadius: '50%', objectFit: 'cover',
+        <InternAvatar
+          photoUrl={internData.photo_url}
+          name={internData.name}
+          size={120}
+          style={{
             border: '3px solid rgba(255,255,255,0.3)'
-          }} />
-        ) : (
-          <div style={{
-            width: '120px', height: '120px',
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.2)',
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '40px', fontWeight: '500', color: '#FFFFFF'
-          }}>
-            {internData.name?.charAt(0).toUpperCase()}
-          </div>
-        )}
+          }}
+        />
         <p style={{color:'#FFFFFF', fontSize:'18px', fontWeight:'500', marginTop:'16px', textAlign: 'center'}}>
           {internData.name}
         </p>

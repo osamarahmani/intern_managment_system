@@ -19,7 +19,4 @@ export const apiFetch = async (endpoint, options = {}) => {
   return data
 }
 
-export const getPhotoUrl = (internId) =>
-  internId ? `${BASE_URL}/api/interns/${internId}/photo` : null
-
 export { BASE_URL }

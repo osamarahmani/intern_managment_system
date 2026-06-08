@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatDate } from '../../utils/formatDate';
+import InternAvatar from '../InternAvatar';
 
 const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
   const [showConfirmReject, setShowConfirmReject] = useState(false);
@@ -38,17 +39,16 @@ const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
       <div className="pending-modal-container">
         {/* Left Column (30%) - Purple Header Panel */}
         <div className="pending-modal-left">
-          {intern.photo_url || intern.photo ? (
-            <img 
-              src={intern.photo_url || intern.photo} 
-              alt={`${intern.name}'s Avatar`} 
-              className="pending-modal-avatar" 
-            />
-          ) : (
-            <div className="pending-modal-avatar-placeholder" aria-hidden="true">
-              {getInitials(intern.name)}
-            </div>
-          )}
+          <InternAvatar
+            photoUrl={intern.photo_url || intern.photo}
+            name={intern.name}
+            size={100}
+            style={{
+              border: '3px solid rgba(255, 255, 255, 0.25)',
+              background: 'rgba(255, 255, 255, 0.1)',
+              marginBottom: '16px'
+            }}
+          />
           
           <h3 id="modal-title" className="pending-modal-name">{intern.name}</h3>
           <p className="pending-modal-dept">{intern.dept || 'Computer Science'}</p>
