@@ -40,7 +40,7 @@ const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
         {/* Left Column (30%) - Purple Header Panel */}
         <div className="pending-modal-left">
           <InternAvatar
-            photoUrl={intern.photo_url || intern.photo}
+            internId={intern.id}
             name={intern.name}
             size={100}
             style={{

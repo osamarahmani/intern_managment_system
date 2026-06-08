@@ -522,8 +522,8 @@ const ApprovedInterns = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to upload photo');
 
-      // Update the local selected intern's photo_url
-      const updatedIntern = { ...selectedIntern, photo_url: data.photoUrl };
+      // Update the local selected intern's photo_updated_at
+      const updatedIntern = { ...selectedIntern, photo_updated_at: Date.now() };
       setSelectedIntern(updatedIntern);
       
       // Update in the list of interns
@@ -1185,7 +1185,7 @@ const ApprovedInterns = () => {
                         gap: '12px'
                       }}>
                         <InternAvatar
-                          photoUrl={summaryStats.topPerformer.photo_url}
+                          internId={summaryStats.topPerformer.id}
                           name={summaryStats.topPerformer.name}
                           size={44}
                         />
@@ -1582,7 +1582,8 @@ const ApprovedInterns = () => {
                       >
                         {/* Avatar */}
                         <InternAvatar
-                          photoUrl={intern.photo_url}
+                          key={`${intern.id}-${intern.photo_updated_at || ''}`}
+                          internId={intern.id}
                           name={intern.name}
                           size={40}
                         />
@@ -1726,7 +1727,8 @@ const ApprovedInterns = () => {
                         }}>
                           {/* Circular avatar */}
                           <InternAvatar
-                            photoUrl={selectedIntern.photo_url}
+                            key={`${selectedIntern.id}-${selectedIntern.photo_updated_at || ''}`}
+                            internId={selectedIntern.id}
                             name={selectedIntern.name}
                             size={80}
                             style={{ border: '3px solid #EEEEEE' }}

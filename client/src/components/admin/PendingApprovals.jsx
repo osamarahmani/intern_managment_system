@@ -77,7 +77,7 @@ const PendingApprovals = ({ pendingInterns = [], onApprove, onReject }) => {
               {/* Card Header */}
               <div className="pending-card-header">
                 <InternAvatar
-                  photoUrl={intern.photo_url || intern.photo}
+                  internId={intern.id}
                   name={intern.name}
                   size={48}
                   style={{

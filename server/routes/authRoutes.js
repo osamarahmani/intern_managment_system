@@ -3,7 +3,6 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const pool = require('../db/pool')
 const upload = require('../middleware/upload')
-const fs = require('fs')
 const router = express.Router()
 
 // POST /api/auth/login
@@ -56,15 +55,12 @@ router.post('/register', upload.single('photo'), async (req, res) => {
       [batch_number, registration_key]
     )
     if (batchResult.rows.length === 0) {
-      // Delete uploaded file if batch validation fails
-      if (req.file) fs.unlinkSync(req.file.path)
       return res.status(400).json({ error: 'Invalid batch number or registration key' })
     }
 
-    // Build photo URL
-    const photoUrl = req.file
-      ? `${process.env.SERVER_URL || 'http://localhost:5000'}/uploads/photos/${req.file.filename}`
-      : null
+    // Photo buffer from multer memory storage
+    const photoBuffer = req.file ? req.file.buffer : null
+    const photoMimeType = req.file ? req.file.mimetype : null
 
     // Hash password
     const password_hash = await bcrypt.hash(password, 10)
@@ -73,13 +69,13 @@ router.post('/register', upload.single('photo'), async (req, res) => {
     const internResult = await pool.query(
       `INSERT INTO interns
        (name, college_name, dept, year, sem, mail, number,
-        starting_date, ending_date, batch_number, photo_url, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')
+        starting_date, ending_date, batch_number, photo, photo_mime_type, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending')
        RETURNING id`,
       [
         name, college_name, dept, year, sem,
         mail, number, starting_date, ending_date,
-        batch_number, photoUrl
+        batch_number, photoBuffer, photoMimeType
       ]
     )
 
@@ -93,10 +89,6 @@ router.post('/register', upload.single('photo'), async (req, res) => {
 
     res.json({ success: true, intern_id: internId, message: 'Registration successful. Await admin approval.' })
   } catch (err) {
-    // Clean up uploaded file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path)
-    }
     console.error('Registration error:', err.message)
     res.status(500).json({ error: err.message })
   }

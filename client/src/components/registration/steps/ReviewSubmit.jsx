@@ -1,14 +1,11 @@
 import React from 'react';
 import { formatDate } from '../../../utils/formatDate';
+import InternAvatar from '../../InternAvatar';
 
 const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
   // Safe helper to format dates for display (e.g. YYYY-MM-DD to standard reading format)
 
-  const photoUrl = React.useMemo(() => {
-    if (!formData.photo) return null;
-    if (typeof formData.photo === 'string') return formData.photo;
-    return URL.createObjectURL(formData.photo);
-  }, [formData.photo]);
+
 
   return (
     <div className="review-step-wrapper">
@@ -17,16 +14,20 @@ const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
         {/* Left Column (30% Width - Purple ID Badge Header) */}
         <div className="id-card-left">
           <div className="id-card-avatar-container">
-            {photoUrl ? (
-              <img 
-                src={photoUrl} 
-                alt={`${formData.name}'s Profile Photo`} 
+            {formData.photo instanceof File ? (
+              <img
+                src={URL.createObjectURL(formData.photo)}
+                alt="Preview"
                 className="id-card-avatar"
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: '50%',
+                  objectFit: 'cover'
+                }}
               />
             ) : (
-              <div className="id-card-avatar-placeholder">
-                <i className="ti ti-user" aria-hidden="true"></i>
-              </div>
+              <InternAvatar name={formData.name} size={100} />
             )}
           </div>
           <h3 className="id-card-name">{formData.name || 'Your Name'}</h3>

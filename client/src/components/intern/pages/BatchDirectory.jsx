@@ -304,7 +304,7 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
                   }}
                 >
                   <InternAvatar
-                    photoUrl={mate.photo_url}
+                    internId={mate.id}
                     name={mate.name}
                     size={40}
                   />
@@ -423,7 +423,7 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
                           marginBottom: '28px'
                         }}>
                           <InternAvatar
-                            photoUrl={selectedTeammate.photo_url}
+                            internId={selectedTeammate.id}
                             name={selectedTeammate.name}
                             size={80}
                             style={{

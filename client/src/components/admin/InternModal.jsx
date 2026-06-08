@@ -100,7 +100,8 @@ const InternModal = ({
         <div className="modal-col-left">
           <div className="modal-left-avatar-container">
             <InternAvatar
-              photoUrl={intern.photo}
+              key={`${intern.id}-${intern.photo_updated_at || ''}`}
+              internId={intern.id}
               name={intern.name}
               size={100}
             />

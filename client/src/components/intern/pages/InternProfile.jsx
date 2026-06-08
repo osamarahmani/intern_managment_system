@@ -27,7 +27,7 @@ const InternProfile = ({ internData }) => {
       }}>
         {/* Avatar */}
         <InternAvatar
-          photoUrl={internData.photo_url}
+          internId={internData.id}
           name={internData.name}
           size={120}
           style={{

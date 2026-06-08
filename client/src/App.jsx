@@ -112,7 +112,7 @@ function App() {
           collegeName: intern.college_name || '',
           startingDate: intern.starting_date || '',
           endingDate: intern.ending_date || '',
-          photo: intern.photo_url || null,
+          photo: null,
           project,
           tasks
         };
@@ -126,7 +126,7 @@ function App() {
   };
 
   const handleUpdateIntern = async (id, updatedFields) => {
-    let photoUrl = updatedFields.photo;
+    let photoUpdatedAt = undefined;
 
     try {
       if (updatedFields.photoFile) {
@@ -144,7 +144,7 @@ function App() {
         });
         const photoData = await photoRes.json();
         if (!photoRes.ok) throw new Error(photoData.error || 'Failed to upload photo');
-        photoUrl = photoData.photoUrl;
+        photoUpdatedAt = Date.now();
       }
 
       const current = await apiFetch(`/api/interns/${id}`);
@@ -161,8 +161,7 @@ function App() {
         ending_date: updatedFields.endingDate !== undefined ? updatedFields.endingDate : current.ending_date,
         batch_number: updatedFields.batchNumber !== undefined ? updatedFields.batchNumber : current.batch_number,
         status: updatedFields.status !== undefined ? updatedFields.status : current.status,
-        profile_visible: updatedFields.profileVisible !== undefined ? updatedFields.profileVisible : current.profile_visible,
-        photo_url: photoUrl !== undefined ? photoUrl : current.photo_url
+        profile_visible: updatedFields.profileVisible !== undefined ? updatedFields.profileVisible : current.profile_visible
       };
 
       await apiFetch(`/api/interns/${id}`, {
@@ -178,7 +177,7 @@ function App() {
         const updated = { 
           ...intern, 
           ...updatedFields,
-          photo: photoUrl !== undefined ? photoUrl : intern.photo
+          photo_updated_at: photoUpdatedAt !== undefined ? photoUpdatedAt : intern.photo_updated_at
         };
         delete updated.photoFile;
         if (selectedIntern && selectedIntern.id === id) {

@@ -176,7 +176,7 @@ const InternLayout = ({ onLogout }) => {
           {/* Intern avatar + name */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <InternAvatar
-              photoUrl={internData?.photo_url}
+              internId={internData?.id}
               name={internData?.name}
               size={34}
               style={{
@@ -245,14 +245,12 @@ const InternLayout = ({ onLogout }) => {
               <InternProfilePage
                 internData={internData}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'project' && (
               <InternProjectPage
                 project={project}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'tasks' && (
@@ -261,14 +259,12 @@ const InternLayout = ({ onLogout }) => {
                 internId={internData?.id}
                 onUpdateTaskStatus={handleUpdateTaskStatus}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_url || ''}
               />
             )}
             {activePage === 'directory' && (
               <BatchDirectory
                 internId={internData?.id}
                 internName={internData?.name || ''}
-                avatarUrl={internData?.photo_url || ''}
               />
             )}
           </>
