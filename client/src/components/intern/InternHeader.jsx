@@ -1,5 +1,3 @@
-import React from 'react';
-
 const InternHeader = ({ activePage, internName, photoUrl }) => {
   const getPageTitle = () => {
     switch (activePage) {

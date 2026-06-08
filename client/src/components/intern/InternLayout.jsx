@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { apiFetch, getInternId } from '../../services/api';
+import { getInternId } from '../../services/authService';
+import { getInternById } from '../../services/internService';
+import { getProjectByInternId } from '../../services/projectService';
+import { getTasksByInternId, updateTask } from '../../services/taskService';
 import './InternLayout.css';
 import InternAvatar from '../InternAvatar';
 
@@ -38,9 +41,9 @@ const InternLayout = ({ onLogout }) => {
       const internId = getInternId();
       if (!internId) throw new Error('No intern ID found in local storage.');
 
-      const intern = await apiFetch(`/api/interns/${internId}`);
-      const projectData = await apiFetch(`/api/projects/intern/${internId}`);
-      const tasksData = await apiFetch(`/api/tasks/intern/${internId}`);
+      const intern = await getInternById(internId);
+      const projectData = await getProjectByInternId(internId);
+      const tasksData = await getTasksByInternId(internId);
 
       setInternData(intern);
       setProject(projectData);
@@ -61,15 +64,12 @@ const InternLayout = ({ onLogout }) => {
       const existingTask = tasks.find((t) => t.id === taskId);
       if (!existingTask) return;
 
-      await apiFetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          status: newStatus,
-          submission_date: submissionDate,
-          title: existingTask.title,
-          expected_date: existingTask.expected_date,
-          upcoming_task: existingTask.upcoming_task
-        })
+      await updateTask(taskId, {
+        status: newStatus,
+        submission_date: submissionDate,
+        title: existingTask.title,
+        expected_date: existingTask.expected_date,
+        upcoming_task: existingTask.upcoming_task
       });
 
       setTasks((prev) =>

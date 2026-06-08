@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../../../utils/formatDate';
-import { apiFetch } from '../../../services/api';
 import InternAvatar from '../../InternAvatar';
+import { getInternById, getInternsByBatch, updateIntern } from '../../../services/internService';
+import { getBatches } from '../../../services/batchService';
+import { getProjectByInternId } from '../../../services/projectService';
+import { getTasksByInternId } from '../../../services/taskService';
 
 const BatchDirectory = ({ internId, internName, avatarUrl }) => {
   const [loading, setLoading] = useState(true);
@@ -25,25 +28,25 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
     setErrorMsg('');
     try {
       // 1. Fetch current intern record to get batch and visibility settings
-      const intern = await apiFetch(`/api/interns/${internId}`);
+      const intern = await getInternById(internId);
       setViewerIntern(intern);
 
       // 2. Fetch current batch record to get visibility mode
-      const batches = await apiFetch('/api/batches');
+      const batches = await getBatches();
       const batch = batches.find(b => b.batch_number === intern.batch_number);
 
       const visMode = batch ? batch.visibility_mode : 'intern_choice';
       setBatchVisibilityMode(visMode);
 
       // 3. Fetch approved teammates in same batch
-      const approvedInterns = await apiFetch(`/api/interns/batch/${intern.batch_number}`);
+      const approvedInterns = await getInternsByBatch(intern.batch_number);
       approvedInterns.sort((a, b) => a.name.localeCompare(b.name));
 
       // 4. Fetch projects to build a project title map
       const pm = {};
       await Promise.all(approvedInterns.map(async (mate) => {
         try {
-          const proj = await apiFetch(`/api/projects/intern/${mate.id}`);
+          const proj = await getProjectByInternId(mate.id);
           if (proj) {
             pm[mate.id] = proj.title;
           }
@@ -88,11 +91,11 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
     setTeammateTasks([]);
     try {
       // Fetch project
-      const projData = await apiFetch(`/api/projects/intern/${mateId}`);
+      const projData = await getProjectByInternId(mateId);
       setTeammateProject(projData);
 
       // Fetch tasks
-      const tasksData = await apiFetch(`/api/tasks/intern/${mateId}`);
+      const tasksData = await getTasksByInternId(mateId);
       if (tasksData) {
         tasksData.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
       }
@@ -127,10 +130,7 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
         status: viewerIntern.status,
         profile_visible: visibleVal
       };
-      await apiFetch(`/api/interns/${viewerIntern.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updated)
-      });
+      await updateIntern(viewerIntern.id, updated);
 
       // Update local state reactively
       const updatedIntern = { ...viewerIntern, profile_visible: visibleVal };

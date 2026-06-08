@@ -1,5 +1,3 @@
-import React from 'react';
-
 const SuccessScreen = ({ onBackToLogin }) => {
   return (
     <div className="success-screen-wrapper" aria-live="polite">

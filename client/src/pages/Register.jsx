@@ -5,7 +5,7 @@ import ContactDetails from '../components/registration/steps/ContactDetails';
 import ProgramDetails from '../components/registration/steps/ProgramDetails';
 import ReviewSubmit from '../components/registration/steps/ReviewSubmit';
 import SuccessScreen from '../components/registration/SuccessScreen';
-import { apiFetch } from '../services/api';
+import { register } from '../services/authService';
 
 const Register = ({ 
   currentStep, 
@@ -54,14 +54,7 @@ const Register = ({
         formDataToSend.append('photo', formData.photo);
       }
 
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const response = await fetch(`${apiUrl}/api/auth/register`, {
-        method: 'POST',
-        body: formDataToSend
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Registration failed');
+      await register(formDataToSend);
       setSubmitted(true);
     } catch (err) {
       setErrorMsg(err.message);

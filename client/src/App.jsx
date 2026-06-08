@@ -4,7 +4,10 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminLayout from './components/admin/AdminLayout';
 import InternLayout from './components/intern/InternLayout';
-import { apiFetch, getRole } from './services/api';
+import { login, logout, getRole } from './services/authService';
+import { getAllInterns, getInternById, updateIntern, updateInternPhoto } from './services/internService';
+import { getProjectByInternId, assignProject } from './services/projectService';
+import { getTasksByInternId, assignTask, updateTask, deleteTask } from './services/taskService';
 
 function App() {
   const [page, setPage] = useState('login'); // 'login' | 'register' | 'admin' | 'intern'
@@ -78,13 +81,13 @@ function App() {
 
   const loadInterns = async () => {
     try {
-      const allInterns = await apiFetch('/api/interns');
+      const allInterns = await getAllInterns();
       
       const formatted = await Promise.all(allInterns.map(async (intern) => {
         let project = { title: '', description: '', gitRepoLink: '', liveProjectLink: '' };
         let tasks = [];
         try {
-          const projData = await apiFetch(`/api/projects/intern/${intern.id}`);
+          const projData = await getProjectByInternId(intern.id);
           if (projData) {
             project = {
               title: projData.title || '',
@@ -93,7 +96,7 @@ function App() {
               liveProjectLink: projData.live_project_link || ''
             };
           }
-          const tasksData = await apiFetch(`/api/tasks/intern/${intern.id}`);
+          const tasksData = await getTasksByInternId(intern.id);
           if (tasksData) {
             tasks = tasksData.reverse().map(t => ({
               id: t.id,
@@ -130,24 +133,11 @@ function App() {
 
     try {
       if (updatedFields.photoFile) {
-        const formDataToSend = new FormData();
-        formDataToSend.append('photo', updatedFields.photoFile);
-
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const token = localStorage.getItem('token');
-        const photoRes = await fetch(`${apiUrl}/api/interns/${id}/photo`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formDataToSend
-        });
-        const photoData = await photoRes.json();
-        if (!photoRes.ok) throw new Error(photoData.error || 'Failed to upload photo');
+        await updateInternPhoto(id, updatedFields.photoFile);
         photoUpdatedAt = Date.now();
       }
 
-      const current = await apiFetch(`/api/interns/${id}`);
+      const current = await getInternById(id);
       
       const merged = {
         name: updatedFields.name !== undefined ? updatedFields.name : current.name,
@@ -164,10 +154,7 @@ function App() {
         profile_visible: updatedFields.profileVisible !== undefined ? updatedFields.profileVisible : current.profile_visible
       };
 
-      await apiFetch(`/api/interns/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(merged)
-      });
+      await updateIntern(id, merged);
     } catch (err) {
       console.warn('Database save skipped, updating local memory state:', err.message);
     }
@@ -191,15 +178,12 @@ function App() {
 
   const handleAssignProject = async (id, projectData) => {
     try {
-      await apiFetch('/api/projects', {
-        method: 'POST',
-        body: JSON.stringify({
-          intern_id: id,
-          title: projectData.title,
-          description: projectData.description,
-          git_repo_link: projectData.gitRepoLink,
-          live_project_link: projectData.liveProjectLink
-        })
+      await assignProject({
+        intern_id: id,
+        title: projectData.title,
+        description: projectData.description,
+        git_repo_link: projectData.gitRepoLink,
+        live_project_link: projectData.liveProjectLink
       });
     } catch (err) {
       console.warn('Database project upsert skipped, updating local memory state:', err.message);
@@ -227,14 +211,11 @@ function App() {
     };
 
     try {
-      const res = await apiFetch('/api/tasks', {
-        method: 'POST',
-        body: JSON.stringify({
-          intern_id: id,
-          title: task.title,
-          expected_date: task.dueDate,
-          upcoming_task: false
-        })
+      const res = await assignTask({
+        intern_id: id,
+        title: task.title,
+        expected_date: task.dueDate,
+        upcoming_task: false
       });
       savedTask = {
         id: res.id,
@@ -264,14 +245,11 @@ function App() {
 
   const handleEditTask = async (internId, taskId, updatedTask) => {
     try {
-      await apiFetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          status: updatedTask.status || 'not_started',
-          submission_date: updatedTask.submissionDate || null,
-          title: updatedTask.title,
-          expected_date: updatedTask.dueDate
-        })
+      await updateTask(taskId, {
+        status: updatedTask.status || 'not_started',
+        submission_date: updatedTask.submissionDate || null,
+        title: updatedTask.title,
+        expected_date: updatedTask.dueDate
       });
     } catch (err) {
       console.warn('Database task update skipped, updating local memory state:', err.message);
@@ -294,9 +272,7 @@ function App() {
 
   const handleDeleteTask = async (internId, taskId) => {
     try {
-      await apiFetch(`/api/tasks/${taskId}`, {
-        method: 'DELETE'
-      });
+      await deleteTask(taskId);
     } catch (err) {
       console.warn('Database task delete skipped, updating local memory state:', err.message);
     }
@@ -317,13 +293,7 @@ function App() {
   };
 
   const handleLogin = async (email, password) => {
-    const data = await apiFetch('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password })
-    });
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('role', data.role);
-    localStorage.setItem('intern_id', data.intern_id);
+    const data = await login(email, password);
     setUserRole(data.role);
     setPage(data.role);
     if (data.role === 'admin') {
@@ -333,9 +303,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
-    localStorage.removeItem('intern_id');
+    logout();
     setUserRole(null);
     setPage('login');
   };

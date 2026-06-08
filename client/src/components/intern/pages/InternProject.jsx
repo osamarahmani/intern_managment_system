@@ -1,5 +1,3 @@
-import React from 'react';
-
 const InternProject = ({ project }) => {
   // Empty state centered in the full height
   if (!project || !project.title) {

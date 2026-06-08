@@ -1,8 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { apiFetch } from '../../services/api';
 import { formatDate } from '../../utils/formatDate';
 import InternAvatar from '../InternAvatar';
 import * as XLSX from 'xlsx';
+import {
+  getAllInterns,
+  getInternById,
+  getInternsByBatch,
+  updateIntern,
+  updateInternPhoto
+} from '../../services/internService';
+import { getBatches, createBatch, updateBatch } from '../../services/batchService';
+import { getProjectByInternId, assignProject } from '../../services/projectService';
+import { getTasksByInternId, assignTask, deleteTask } from '../../services/taskService';
 
 const thStyle = {
   padding: '10px 16px',
@@ -184,7 +193,7 @@ const ApprovedInterns = () => {
     setSummaryLoading(true);
     try {
       // 1. Fetch interns in batch
-      const batchInterns = await apiFetch(`/api/interns/batch/${batchNum}`);
+      const batchInterns = await getInternsByBatch(batchNum);
       
       const safeInterns = batchInterns || [];
       const internIds = safeInterns.map(i => i.id);
@@ -209,11 +218,11 @@ const ApprovedInterns = () => {
       }
 
       // 2. Fetch tasks for those interns
-      const tasksData = await Promise.all(internIds.map(id => apiFetch(`/api/tasks/intern/${id}`)));
+      const tasksData = await Promise.all(internIds.map(id => getTasksByInternId(id)));
       const batchTasks = tasksData.flat();
 
       // 3. Fetch projects for those interns
-      const projectsData = await Promise.all(internIds.map(id => apiFetch(`/api/projects/intern/${id}`)));
+      const projectsData = await Promise.all(internIds.map(id => getProjectByInternId(id)));
       const batchProjects = projectsData.filter(Boolean);
 
       const safeTasks = batchTasks || [];
@@ -292,9 +301,9 @@ const ApprovedInterns = () => {
       // 1. Fetch interns
       let interns;
       if (batchNumber) {
-        interns = await apiFetch(`/api/interns/batch/${batchNumber}`);
+        interns = await getInternsByBatch(batchNumber);
       } else {
-        const all = await apiFetch('/api/interns');
+        const all = await getAllInterns();
         interns = all.filter(i => i.status === 'approved');
       }
 
@@ -307,11 +316,11 @@ const ApprovedInterns = () => {
       const internIds = interns.map(i => i.id);
 
       // 2. Fetch projects
-      const projectsData = await Promise.all(internIds.map(id => apiFetch(`/api/projects/intern/${id}`)));
+      const projectsData = await Promise.all(internIds.map(id => getProjectByInternId(id)));
       const projects = projectsData.filter(Boolean);
 
       // 3. Fetch tasks
-      const tasksData = await Promise.all(internIds.map(id => apiFetch(`/api/tasks/intern/${id}`)));
+      const tasksData = await Promise.all(internIds.map(id => getTasksByInternId(id)));
       const tasks = tasksData.flat();
 
       // 4. Build lookup maps
@@ -468,7 +477,7 @@ const ApprovedInterns = () => {
     setSavingDetails(true);
     setDetailsSaved(false);
     try {
-      const current = await apiFetch(`/api/interns/${selectedIntern.id}`);
+      const current = await getInternById(selectedIntern.id);
       const merged = {
         ...current,
         name: editedIntern.name,
@@ -482,10 +491,7 @@ const ApprovedInterns = () => {
         ending_date: editedIntern.ending_date,
         batch_number: editedIntern.batch_number
       };
-      await apiFetch(`/api/interns/${selectedIntern.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(merged)
-      });
+      await updateIntern(selectedIntern.id, merged);
 
       // Update local interns list state
       setInterns((prev) =>
@@ -505,22 +511,7 @@ const ApprovedInterns = () => {
   const handlePhotoUpload = async (file) => {
     if (!selectedIntern || !file) return;
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('photo', file);
-
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`${apiUrl}/api/interns/${selectedIntern.id}/photo`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formDataToSend
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to upload photo');
+      await updateInternPhoto(selectedIntern.id, file);
 
       // Update the local selected intern's photo_updated_at
       const updatedIntern = { ...selectedIntern, photo_updated_at: Date.now() };
@@ -554,7 +545,7 @@ const ApprovedInterns = () => {
 
   const fetchBatches = async () => {
     try {
-      const data = await apiFetch('/api/batches');
+      const data = await getBatches();
       if (data) setBatches(data);
     } catch (err) {
       console.error('Error fetching batches:', err.message);
@@ -563,7 +554,7 @@ const ApprovedInterns = () => {
 
   const fetchInternsForBatch = async (batchNum) => {
     try {
-      const data = await apiFetch(`/api/interns/batch/${batchNum}`);
+      const data = await getInternsByBatch(batchNum);
       if (data) setInterns(data);
     } catch (err) {
       console.error('Error fetching interns:', err.message);
@@ -573,7 +564,7 @@ const ApprovedInterns = () => {
   const fetchInternDetails = async (internId) => {
     try {
       // Fetch projects
-      const projData = await apiFetch(`/api/projects/intern/${internId}`);
+      const projData = await getProjectByInternId(internId);
       setProjects(projData ? [projData] : []);
 
       // Prefill project form states reactively
@@ -587,7 +578,7 @@ const ApprovedInterns = () => {
       }
 
       // Fetch tasks
-      const taskData = await apiFetch(`/api/tasks/intern/${internId}`);
+      const taskData = await getTasksByInternId(internId);
       if (taskData) {
         taskData.reverse();
         setTasks(taskData);
@@ -633,12 +624,9 @@ const ApprovedInterns = () => {
     }
 
     try {
-      const data = await apiFetch('/api/batches', {
-        method: 'POST',
-        body: JSON.stringify({
-          batch_number: batchNumber.trim(),
-          registration_key: registrationKey.trim()
-        })
+      const data = await createBatch({
+        batch_number: batchNumber.trim(),
+        registration_key: registrationKey.trim()
       });
 
       setSuccessMsg(`Batch "${batchNumber}" provisioned successfully!`);
@@ -653,12 +641,9 @@ const ApprovedInterns = () => {
   const handleToggleBatchStatus = async (batch) => {
     const updatedStatus = !batch.is_active;
     try {
-      await apiFetch(`/api/batches/${batch.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          is_active: updatedStatus,
-          visibility_mode: batch.visibility_mode
-        })
+      await updateBatch(batch.id, {
+        is_active: updatedStatus,
+        visibility_mode: batch.visibility_mode
       });
 
       setBatches((prev) =>
@@ -671,12 +656,9 @@ const ApprovedInterns = () => {
 
   const handleUpdateVisibilityMode = async (batchId, mode) => {
     try {
-      await apiFetch(`/api/batches/${batchId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          is_active: batches.find(b => b.id === batchId)?.is_active ?? true,
-          visibility_mode: mode
-        })
+      await updateBatch(batchId, {
+        is_active: batches.find(b => b.id === batchId)?.is_active ?? true,
+        visibility_mode: mode
       });
 
       setBatches((prev) =>
@@ -702,15 +684,12 @@ const ApprovedInterns = () => {
     }
 
     try {
-      const data = await apiFetch('/api/projects', {
-        method: 'POST',
-        body: JSON.stringify({
-          intern_id: selectedIntern.id,
-          title: projectTitle.trim(),
-          description: projectDesc.trim(),
-          git_repo_link: projectGit.trim(),
-          live_project_link: projectLive.trim()
-        })
+      const data = await assignProject({
+        intern_id: selectedIntern.id,
+        title: projectTitle.trim(),
+        description: projectDesc.trim(),
+        git_repo_link: projectGit.trim(),
+        live_project_link: projectLive.trim()
       });
 
       alert('Project assigned/updated successfully!');
@@ -731,14 +710,11 @@ const ApprovedInterns = () => {
     }
 
     try {
-      const data = await apiFetch('/api/tasks', {
-        method: 'POST',
-        body: JSON.stringify({
-          intern_id: selectedIntern.id,
-          title: assignWork.trim(),
-          expected_date: expectedDate,
-          upcoming_task: false
-        })
+      const data = await assignTask({
+        intern_id: selectedIntern.id,
+        title: assignWork.trim(),
+        expected_date: expectedDate,
+        upcoming_task: false
       });
 
       alert('Task assigned successfully!');
@@ -752,9 +728,7 @@ const ApprovedInterns = () => {
   const handleDeleteTask = async (taskId) => {
     if (!window.confirm('Are you sure you want to delete this task?')) return;
     try {
-      await apiFetch(`/api/tasks/${taskId}`, {
-        method: 'DELETE'
-      });
+      await deleteTask(taskId);
 
       alert('Task deleted successfully!');
       setTasks((prev) => prev.filter((t) => t.id !== taskId));

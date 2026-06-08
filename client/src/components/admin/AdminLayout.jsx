@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import ApprovedInterns from './ApprovedInterns';
 import PendingApprovals from './PendingApprovals';
-import { apiFetch } from '../../services/api';
+import { getAllInterns, approveIntern, rejectIntern } from '../../services/internService';
 import './AdminLayout.css';
 
 const AdminLayout = ({ onLogout }) => {
@@ -34,7 +34,7 @@ const AdminLayout = ({ onLogout }) => {
   const fetchPending = async () => {
     setLoading(true);
     try {
-      const allInterns = await apiFetch('/api/interns');
+      const allInterns = await getAllInterns();
       const pending = allInterns.filter((i) => i.status === 'pending');
       setPendingInterns(pending || []);
     } catch (err) {
@@ -48,10 +48,7 @@ const AdminLayout = ({ onLogout }) => {
     try {
       const intern = pendingInterns.find((i) => i.id === id);
       if (!intern) return;
-      await apiFetch(`/api/interns/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ ...intern, status: 'approved' })
-      });
+      await approveIntern(id);
       setPendingInterns((prev) => prev.filter((i) => i.id !== id));
       setApprovedInterns((prev) => [...prev, { ...intern, status: 'approved' }]);
     } catch (err) {
@@ -61,9 +58,7 @@ const AdminLayout = ({ onLogout }) => {
 
   const handleReject = async (id) => {
     try {
-      await apiFetch(`/api/interns/${id}`, {
-        method: 'DELETE'
-      });
+      await rejectIntern(id);
       setPendingInterns((prev) => prev.filter((i) => i.id !== id));
     } catch (err) {
       alert(`Rejection failed: ${err.message}`);

@@ -1,6 +1,3 @@
-import React from 'react';
-import logo from '../../assets/tarcin-logo.webp';
-
 const InternSidebar = ({ activePage, setActivePage, onLogout }) => {
   return (
     <aside className="intern-sidebar" role="navigation" aria-label="Intern Navigation Sidebar">

@@ -1,5 +1,3 @@
-import logo from '../../assets/tarcin-logo.webp';
-
 const Sidebar = ({ activePage, setActivePage, pendingCount, onLogout }) => {
   return (
     <aside className="admin-sidebar" role="navigation" aria-label="Admin Navigation Sidebar">

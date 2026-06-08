@@ -1,5 +1,3 @@
-import React from 'react';
-import logo from '../assets/tarcin-logo.webp';
 import './Header.css';
 
 const Header = ({ mode = 'login', onActionClick }) => {

@@ -1,5 +1,3 @@
-import React from 'react';
-
 const Stepper = ({ currentStep }) => {
   const steps = [
     { number: 1, label: 'Personal Details' },
