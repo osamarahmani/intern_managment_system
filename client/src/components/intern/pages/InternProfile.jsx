@@ -29,6 +29,7 @@ const InternProfile = ({ internData }) => {
           internId={internData.id}
           name={internData.name}
           size={120}
+          photoBust={internData._photoBust || ''}
           style={{
             border: '3px solid rgba(255,255,255,0.3)'
           }}

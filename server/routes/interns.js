@@ -71,7 +71,7 @@ router.get('/:id/photo', async (req, res) => {
     res.writeHead(200, {
       'Content-Type': row.photo_mime_type || 'image/jpeg',
       'Content-Length': photoBuffer.length,
-      'Cache-Control': 'public, max-age=86400'
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
     })
     res.end(photoBuffer)
   } catch (err) {

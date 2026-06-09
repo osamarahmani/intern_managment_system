@@ -26,7 +26,11 @@ const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
                 }}
               />
             ) : (
-              <InternAvatar name={formData.name} size={100} />
+              <InternAvatar
+                name={formData.name}
+                size={100}
+                photoBust={formData._photoBust || ''}
+              />
             )}
           </div>
           <h3 className="id-card-name">{formData.name || 'Your Name'}</h3>

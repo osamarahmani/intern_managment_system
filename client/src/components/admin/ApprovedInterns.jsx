@@ -148,9 +148,9 @@ const ApprovedInterns = () => {
 
   // Sync internal navigation with browser history
   useEffect(() => {
-    if (!window.history.state || 
-        window.history.state.activeView !== activeView || 
-        window.history.state.selectedBatchId !== selectedBatch?.id) {
+    if (!window.history.state ||
+      window.history.state.activeView !== activeView ||
+      window.history.state.selectedBatchId !== selectedBatch?.id) {
       window.history.pushState({
         ...window.history.state,
         activeView,
@@ -194,7 +194,7 @@ const ApprovedInterns = () => {
     try {
       // 1. Fetch interns in batch
       const batchInterns = await getInternsByBatch(batchNum);
-      
+
       const safeInterns = batchInterns || [];
       const internIds = safeInterns.map(i => i.id);
 
@@ -237,15 +237,15 @@ const ApprovedInterns = () => {
       const internsWithoutProject = totalInterns - internsWithProject;
       const avgDaysRemaining = totalInterns > 0
         ? Math.round(
-            safeInterns.reduce((sum, i) => {
-              const endingDateStr = i.ending_date || i.endingDate;
-              const endingDate = endingDateStr ? new Date(endingDateStr) : null;
-              const diff = (endingDate && !isNaN(endingDate.getTime()))
-                ? Math.max(0, Math.ceil((endingDate - new Date()) / (1000 * 60 * 60 * 24)))
-                : 0;
-              return sum + diff;
-            }, 0) / totalInterns
-          )
+          safeInterns.reduce((sum, i) => {
+            const endingDateStr = i.ending_date || i.endingDate;
+            const endingDate = endingDateStr ? new Date(endingDateStr) : null;
+            const diff = (endingDate && !isNaN(endingDate.getTime()))
+              ? Math.max(0, Math.ceil((endingDate - new Date()) / (1000 * 60 * 60 * 24)))
+              : 0;
+            return sum + diff;
+          }, 0) / totalInterns
+        )
         : 0;
 
       // Task stats
@@ -509,20 +509,15 @@ const ApprovedInterns = () => {
   };
 
   const handlePhotoUpload = async (file) => {
-    if (!selectedIntern || !file) return;
+    if (!selectedIntern || !file) return
     try {
-      await updateInternPhoto(selectedIntern.id, file);
-
-      // Update the local selected intern's photo_updated_at
-      const updatedIntern = { ...selectedIntern, photo_updated_at: Date.now() };
-      setSelectedIntern(updatedIntern);
-      
-      // Update in the list of interns
-      setInterns(prev => prev.map(i => i.id === selectedIntern.id ? updatedIntern : i));
-      
-      alert('Profile photo updated successfully!');
+      await updateInternPhoto(selectedIntern.id, file)
+      const updatedIntern = { ...selectedIntern, _photoBust: Date.now() }
+      setSelectedIntern(updatedIntern)
+      setInterns(prev => prev.map(i => i.id === selectedIntern.id ? updatedIntern : i))
+      alert('Profile photo updated successfully!')
     } catch (err) {
-      alert('Photo upload failed: ' + err.message);
+      alert('Photo upload failed: ' + err.message)
     }
   };
 
@@ -790,115 +785,115 @@ const ApprovedInterns = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Create Batch Form Panel */}
               <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Provision New Batch</h3>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Provision New Batch</h3>
 
-              {successMsg && <div style={{ background: '#E6F4EA', color: '#137333', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{successMsg}</div>}
-              {errorMsg && <div style={{ background: '#FCE8E6', color: '#C5221F', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{errorMsg}</div>}
+                {successMsg && <div style={{ background: '#E6F4EA', color: '#137333', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{successMsg}</div>}
+                {errorMsg && <div style={{ background: '#FCE8E6', color: '#C5221F', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{errorMsg}</div>}
 
-              <form onSubmit={handleCreateBatch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>
-                    Batch Number
-                  </label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <input
-                      type="text"
-                      placeholder="BATCH NUMBER"
-                      value={batchNumber}
-                      onChange={(e) => {
-                        setBatchNumber(e.target.value);
-                        setRegistrationKey(''); // reset key if batch name changes
-                      }}
-                      required
-                      style={{
-                        flex: 1,
-                        height: '40px',
-                        padding: '0 12px',
-                        border: '1px solid #E0E0E0',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleGenerateKey}
-                      disabled={!batchNumber.trim()}
-                      style={{
-                        height: '40px',
-                        padding: '0 16px',
-                        background: batchNumber.trim() ? '#03DAC6' : '#F5F5F5',
-                        color: batchNumber.trim() ? '#000000' : '#BDBDBD',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontWeight: '600',
-                        fontSize: '13px',
-                        cursor: batchNumber.trim() ? 'pointer' : 'not-allowed',
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0
-                      }}
-                    >
-                      Generate Key
-                    </button>
+                <form onSubmit={handleCreateBatch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>
+                      Batch Number
+                    </label>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input
+                        type="text"
+                        placeholder="BATCH NUMBER"
+                        value={batchNumber}
+                        onChange={(e) => {
+                          setBatchNumber(e.target.value);
+                          setRegistrationKey(''); // reset key if batch name changes
+                        }}
+                        required
+                        style={{
+                          flex: 1,
+                          height: '40px',
+                          padding: '0 12px',
+                          border: '1px solid #E0E0E0',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGenerateKey}
+                        disabled={!batchNumber.trim()}
+                        style={{
+                          height: '40px',
+                          padding: '0 16px',
+                          background: batchNumber.trim() ? '#03DAC6' : '#F5F5F5',
+                          color: batchNumber.trim() ? '#000000' : '#BDBDBD',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontWeight: '600',
+                          fontSize: '13px',
+                          cursor: batchNumber.trim() ? 'pointer' : 'not-allowed',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}
+                      >
+                        Generate Key
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {registrationKey && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    background: '#F8F7FF',
-                    border: '1px solid #3D35C4',
-                    borderRadius: '8px',
-                    padding: '10px 14px'
-                  }}>
-                    <i className="ti ti-key" style={{ color: '#3D35C4', fontSize: '16px' }} />
-                    <span style={{
-                      flex: 1,
-                      fontFamily: 'monospace',
-                      fontSize: '13px',
-                      color: '#3D35C4',
-                      fontWeight: '600',
-                      letterSpacing: '0.05em'
+                  {registrationKey && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      background: '#F8F7FF',
+                      border: '1px solid #3D35C4',
+                      borderRadius: '8px',
+                      padding: '10px 14px'
                     }}>
-                      {registrationKey}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(registrationKey)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#3D35C4',
+                      <i className="ti ti-key" style={{ color: '#3D35C4', fontSize: '16px' }} />
+                      <span style={{
+                        flex: 1,
+                        fontFamily: 'monospace',
                         fontSize: '13px',
-                        fontWeight: '500',
-                        padding: '4px 8px'
-                      }}
-                    >
-                      Copy
-                    </button>
-                  </div>
-                )}
+                        color: '#3D35C4',
+                        fontWeight: '600',
+                        letterSpacing: '0.05em'
+                      }}>
+                        {registrationKey}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(registrationKey)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#3D35C4',
+                          fontSize: '13px',
+                          fontWeight: '500',
+                          padding: '4px 8px'
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  )}
 
-                <button
-                  type="submit"
-                  disabled={!batchNumber.trim() || !registrationKey}
-                  style={{
-                    height: '40px',
-                    background: (batchNumber.trim() && registrationKey) ? '#3D35C4' : '#F5F5F5',
-                    color: (batchNumber.trim() && registrationKey) ? '#FFFFFF' : '#BDBDBD',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontWeight: '600',
-                    fontSize: '13px',
-                    cursor: (batchNumber.trim() && registrationKey) ? 'pointer' : 'not-allowed'
-                  }}
-                >
-                  Generate Batch
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    disabled={!batchNumber.trim() || !registrationKey}
+                    style={{
+                      height: '40px',
+                      background: (batchNumber.trim() && registrationKey) ? '#3D35C4' : '#F5F5F5',
+                      color: (batchNumber.trim() && registrationKey) ? '#FFFFFF' : '#BDBDBD',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      fontSize: '13px',
+                      cursor: (batchNumber.trim() && registrationKey) ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    Generate Batch
+                  </button>
+                </form>
               </div>
 
               {/* Batch Summary Card */}
@@ -1162,6 +1157,7 @@ const ApprovedInterns = () => {
                           internId={summaryStats.topPerformer.id}
                           name={summaryStats.topPerformer.name}
                           size={44}
+                          photoBust={summaryStats.topPerformer._photoBust || ''}
                         />
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#3D35C4' }}>
@@ -1554,12 +1550,12 @@ const ApprovedInterns = () => {
                         onClick={() => setSelectedIntern(intern)}
                         className={`intern-list-item ${isSelected ? 'active' : ''}`}
                       >
-                        {/* Avatar */}
                         <InternAvatar
-                          key={`${intern.id}-${intern.photo_updated_at || ''}`}
+                          key={`${intern.id}-${intern._photoBust || ''}`}
                           internId={intern.id}
                           name={intern.name}
                           size={40}
+                          photoBust={intern._photoBust || ''}
                         />
 
                         {/* Info details */}
@@ -1706,6 +1702,7 @@ const ApprovedInterns = () => {
                             name={selectedIntern.name}
                             size={80}
                             style={{ border: '3px solid #EEEEEE' }}
+                            photoBust={selectedIntern._photoBust || ''}
                           />
 
                           {/* Name and dept next to photo */}

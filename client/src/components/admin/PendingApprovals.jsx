@@ -80,6 +80,7 @@ const PendingApprovals = ({ pendingInterns = [], onApprove, onReject }) => {
                   internId={intern.id}
                   name={intern.name}
                   size={48}
+                  photoBust={intern._photoBust || ''}
                   style={{
                     border: '2px solid #FFE0B2',
                     backgroundColor: '#FAFAFA'

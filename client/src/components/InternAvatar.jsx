@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const InternAvatar = ({ internId, name, size = 40, style = {} }) => {
+const InternAvatar = ({ internId, name, size = 40, style = {}, photoBust = '' }) => {
   const [error, setError] = useState(false)
 
   const initials = name
@@ -8,7 +8,7 @@ const InternAvatar = ({ internId, name, size = 40, style = {} }) => {
     : 'IN'
 
   const photoUrl = internId
-    ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/interns/${internId}/photo`
+    ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/interns/${internId}/photo?t=${photoBust}`
     : null
 
   if (photoUrl && !error) {

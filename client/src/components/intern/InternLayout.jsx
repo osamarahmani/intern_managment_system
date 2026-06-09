@@ -179,6 +179,7 @@ const InternLayout = ({ onLogout }) => {
               internId={internData?.id}
               name={internData?.name}
               size={34}
+              photoBust={internData?._photoBust || ''}
               style={{
                 border: '1.5px solid rgba(255, 255, 255, 0.25)',
               }}

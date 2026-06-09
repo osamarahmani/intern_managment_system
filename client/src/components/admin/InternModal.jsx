@@ -47,25 +47,25 @@ const InternModal = ({
     switch (activeTab) {
       case 'basicInfo':
         return (
-          <BasicInfoSection 
-            intern={intern} 
-            onSave={(updatedFields) => onUpdateIntern(intern.id, updatedFields)} 
+          <BasicInfoSection
+            intern={intern}
+            onSave={(updatedFields) => onUpdateIntern(intern.id, updatedFields)}
           />
         );
       case 'project':
         return (
-          <ProjectSection 
-            intern={intern} 
-            onAssign={(projectData) => onAssignProject(intern.id, projectData)} 
+          <ProjectSection
+            intern={intern}
+            onAssign={(projectData) => onAssignProject(intern.id, projectData)}
           />
         );
       case 'tasks':
         return (
-          <TaskSection 
-            intern={intern} 
-            onAddTask={onAddTask} 
-            onEditTask={onEditTask} 
-            onDeleteTask={onDeleteTask} 
+          <TaskSection
+            intern={intern}
+            onAddTask={onAddTask}
+            onEditTask={onEditTask}
+            onDeleteTask={onDeleteTask}
           />
         );
       default:
@@ -74,22 +74,22 @@ const InternModal = ({
   };
 
   return (
-    <div 
-      className="modal-overlay" 
+    <div
+      className="modal-overlay"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
       {/* Modal Dialog Card */}
-      <div 
-        className="modal-container" 
+      <div
+        className="modal-container"
         onClick={(e) => e.stopPropagation()} // prevent closing when clicking inside
       >
         {/* Absolute positioned close button */}
-        <button 
-          type="button" 
-          className="modal-close-btn" 
+        <button
+          type="button"
+          className="modal-close-btn"
           onClick={onClose}
           aria-label="Close modal dialog"
         >
@@ -104,6 +104,7 @@ const InternModal = ({
               internId={intern.id}
               name={intern.name}
               size={100}
+              photoBust={intern._photoBust || ''}
             />
           </div>
 
@@ -111,8 +112,8 @@ const InternModal = ({
           <p className="modal-left-dept">{intern.dept}</p>
 
           {/* Change Photo Button & Invisible File Input */}
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="modal-left-photo-btn"
             onClick={handlePhotoClick}
           >

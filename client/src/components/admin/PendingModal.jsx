@@ -43,13 +43,14 @@ const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
             internId={intern.id}
             name={intern.name}
             size={100}
+            photoBust={intern._photoBust || ''}
             style={{
               border: '3px solid rgba(255, 255, 255, 0.25)',
               background: 'rgba(255, 255, 255, 0.1)',
               marginBottom: '16px'
             }}
           />
-          
+
           <h3 id="modal-title" className="pending-modal-name">{intern.name}</h3>
           <p className="pending-modal-dept">{intern.dept || 'Computer Science'}</p>
           <span className="pending-modal-badge">Pending</span>
@@ -111,8 +112,8 @@ const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
               <div className="inline-confirmation-alert" role="alert">
                 <span>Are you sure you want to reject this registration?</span>
                 <div className="inline-conf-actions">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="inline-conf-btn inline-conf-btn-yes"
                     onClick={() => {
                       onReject(intern.id);
@@ -121,8 +122,8 @@ const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
                   >
                     Yes, Reject
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="inline-conf-btn inline-conf-btn-no"
                     onClick={() => setShowConfirmReject(false)}
                   >
@@ -134,17 +135,17 @@ const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
 
             {/* Default Footer Buttons */}
             <div className="pending-modal-actions">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="pending-btn-reject"
                 onClick={() => setShowConfirmReject(true)}
                 disabled={showConfirmReject}
               >
                 Reject
               </button>
-              
-              <button 
-                type="button" 
+
+              <button
+                type="button"
                 className="pending-btn-approve"
                 onClick={() => {
                   onApprove(intern.id);
@@ -154,10 +155,10 @@ const PendingModal = ({ intern, onClose, onApprove, onReject }) => {
               >
                 Approve
               </button>
-              
-              <button 
-                type="button" 
-                className="ghost-submit-btn" 
+
+              <button
+                type="button"
+                className="ghost-submit-btn"
                 style={{ height: '40px', width: '100px', fontSize: '13px' }}
                 onClick={onClose}
               >
