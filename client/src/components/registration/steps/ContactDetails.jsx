@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 
 const ContactDetails = ({ formData, onUpdate, onNext, onBack }) => {
   const [localErrors, setLocalErrors] = useState({});
@@ -77,7 +77,6 @@ const ContactDetails = ({ formData, onUpdate, onNext, onBack }) => {
     }
 
     // Phone number validation (must be non-empty and look like a phone number)
-    const phoneRegex = /^[+]?[(]?[0-9]{3}[)]?[-s.]?[0-9]{3}[-s.]?[0-9]{4,6}$/;
     if (!formData.number.trim()) {
       errors.number = 'Phone number is required.';
     } else if (isNaN(formData.number.replace(/\D/g, '')) || formData.number.length < 8) {

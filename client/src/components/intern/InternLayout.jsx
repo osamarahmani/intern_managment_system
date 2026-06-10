@@ -112,10 +112,6 @@ const InternLayout = ({ onLogout }) => {
     transition: 'background 0.2s, color 0.2s'
   };
 
-  const initials = internData?.name
-    ? internData.name.split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    : 'IN';
-
   return (
     <div style={{
       minHeight: '100vh',

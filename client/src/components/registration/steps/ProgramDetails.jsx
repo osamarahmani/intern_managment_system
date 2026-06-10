@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
   const [localErrors, setLocalErrors] = useState({});

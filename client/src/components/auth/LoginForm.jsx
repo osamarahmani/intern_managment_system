@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword }) => {
   const [email, setEmail] = useState('');

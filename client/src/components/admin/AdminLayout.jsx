@@ -6,9 +6,7 @@ import './AdminLayout.css';
 
 const AdminLayout = ({ onLogout }) => {
   const [pendingInterns, setPendingInterns] = useState([]);
-  const [approvedInterns, setApprovedInterns] = useState([]);
   const [activePage, setActivePage] = useState('dashboard'); // 'dashboard' | 'pending'
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!window.history.state || window.history.state.activePage !== activePage) {
@@ -32,15 +30,12 @@ const AdminLayout = ({ onLogout }) => {
   }, []);
 
   const fetchPending = async () => {
-    setLoading(true);
     try {
       const allInterns = await getAllInterns();
       const pending = allInterns.filter((i) => i.status === 'pending');
       setPendingInterns(pending || []);
     } catch (err) {
       console.error('Error fetching pending registrations:', err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -50,7 +45,6 @@ const AdminLayout = ({ onLogout }) => {
       if (!intern) return;
       await approveIntern(id);
       setPendingInterns((prev) => prev.filter((i) => i.id !== id));
-      setApprovedInterns((prev) => [...prev, { ...intern, status: 'approved' }]);
     } catch (err) {
       alert(`Approval failed: ${err.message}`);
     }

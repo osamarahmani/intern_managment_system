@@ -6,17 +6,6 @@ import InternAvatar from '../InternAvatar';
 const PendingApprovals = ({ pendingInterns = [], onApprove, onReject }) => {
   const [selectedIntern, setSelectedIntern] = useState(null);
 
-  // Get initials for placeholder avatar
-  const getInitials = (name) => {
-    if (!name) return 'I';
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase();
-  };
-
   const pendingCount = pendingInterns.length;
 
   return (

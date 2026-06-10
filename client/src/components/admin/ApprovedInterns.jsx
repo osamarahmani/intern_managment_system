@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { formatDate } from '../../utils/formatDate';
 import InternAvatar from '../InternAvatar';
 import * as XLSX from 'xlsx';
 import {
