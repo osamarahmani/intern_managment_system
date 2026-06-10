@@ -18,3 +18,9 @@ export const updateBatch = async (batchId, batchData, token = getToken()) => {
     body: JSON.stringify(batchData)
   }, token)
 }
+
+export const changeBatchMentor = (batchId, adminId) =>
+  apiClient(`/api/batches/${batchId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ created_by: adminId })
+  }, getToken())

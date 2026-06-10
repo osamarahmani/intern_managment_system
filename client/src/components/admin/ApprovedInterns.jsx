@@ -80,10 +80,10 @@ const formatDateForInput = (dateStr) => {
   }
 };
 
-const ApprovedInterns = () => {
+const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   // Navigation & View States
-  const [activeView, setActiveView] = useState('batches'); // 'batches' | 'batchDetails'
-  const [selectedBatch, setSelectedBatch] = useState(null);
+  const [activeView, setActiveView] = useState(initialBatchNumber ? 'batchDetails' : 'batches'); // 'batches' | 'batchDetails'
+  const [selectedBatch, setSelectedBatch] = useState(initialBatchNumber ? { batch_number: initialBatchNumber } : null);
   const [selectedIntern, setSelectedIntern] = useState(null);
 
   // Split Panel Resizing States & Refs
@@ -541,7 +541,14 @@ const ApprovedInterns = () => {
   const fetchBatches = async () => {
     try {
       const data = await getBatches();
-      if (data) setBatches(data);
+      if (data) {
+        setBatches(data);
+        if (initialBatchNumber) {
+          const matched = data.find(b => b.batch_number === initialBatchNumber);
+          setSelectedBatch(matched || { batch_number: initialBatchNumber });
+          setActiveView('batchDetails');
+        }
+      }
     } catch (err) {
       console.error('Error fetching batches:', err.message);
     }

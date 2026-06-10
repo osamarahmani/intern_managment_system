@@ -4,7 +4,12 @@
   "description": "Express backend server for local PostgreSQL 18 migration",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "drop": "node scripts/dropTables.js",
+    "migrate": "node scripts/migrate.js",
+    "seed:superadmin": "node scripts/seedSuperAdmin.js",
+    "setup": "npm run migrate && npm run seed:superadmin",
+    "reset": "npm run drop && npm run setup"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,0 +1,152 @@
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') })
+const pool = require('../db/pool')
+
+const runMigration = async () => {
+  try {
+    console.log('Running database migrations...')
+
+    // Create extensions
+    await pool.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";')
+    await pool.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";')
+
+    // Create auth schema and auth.users dummy table
+    await pool.query('CREATE SCHEMA IF NOT EXISTS auth;')
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS auth.users (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        email text UNIQUE,
+        created_at timestamptz DEFAULT now()
+      );
+    `)
+
+    // 1. batches table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.batches (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        batch_number text UNIQUE NOT NULL,
+        registration_key text NOT NULL,
+        is_active boolean NOT NULL DEFAULT true,
+        visibility_mode text NOT NULL DEFAULT 'intern_choice' CHECK (visibility_mode IN ('public', 'private', 'intern_choice')),
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `)
+
+    // 2. interns table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.interns (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL,
+        college_name text,
+        dept text,
+        year text,
+        sem text,
+        mail text UNIQUE NOT NULL,
+        number text,
+        starting_date date,
+        ending_date date,
+        batch_number text REFERENCES public.batches(batch_number) ON DELETE SET NULL,
+        status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+        profile_visible boolean NOT NULL DEFAULT true,
+        photo bytea,
+        photo_mime_type text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `)
+
+    // 3. profiles table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.profiles (
+        id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+        role text NOT NULL CHECK (role IN ('super_admin', 'admin', 'intern')),
+        intern_id uuid REFERENCES public.interns(id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `)
+
+    // 4. users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.users (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        email text UNIQUE NOT NULL,
+        password_hash text NOT NULL,
+        role text NOT NULL CHECK (role IN ('admin', 'intern')),
+        intern_id uuid REFERENCES public.interns(id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `)
+
+    // 5. projects table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.projects (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        intern_id uuid UNIQUE NOT NULL REFERENCES public.interns(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        description text,
+        git_repo_link text,
+        live_project_link text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `)
+
+    // 6. tasks table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.tasks (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        intern_id uuid NOT NULL REFERENCES public.interns(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        expected_date date,
+        submission_date date,
+        status text NOT NULL DEFAULT 'not_started' CHECK (status IN ('not_started', 'in_progress', 'completed')),
+        upcoming_task boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `)
+
+    // 7. password_reset_tokens table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.password_reset_tokens (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        email text NOT NULL,
+        token text NOT NULL UNIQUE,
+        expires_at timestamptz NOT NULL,
+        used boolean DEFAULT false,
+        created_at timestamptz DEFAULT now()
+      );
+    `)
+
+    // Idempotent column additions for existing tables
+    const colAdditions = [
+      "ALTER TABLE public.batches ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL;",
+      "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name text;",
+      "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email text UNIQUE;",
+      "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password text;",
+      "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT true;"
+    ]
+
+    for (const addCol of colAdditions) {
+      await pool.query(addCol)
+    }
+
+    // Role check constraint update for profiles (idempotent drops and adds)
+    await pool.query(`
+      ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+      ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('super_admin', 'admin', 'intern'));
+    `)
+
+    // Indexes
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_interns_batch_number ON public.interns(batch_number);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_interns_status ON public.interns(status);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_profiles_intern_id ON public.profiles(intern_id);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_users_intern_id ON public.users(intern_id);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_projects_intern_id ON public.projects(intern_id);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_tasks_intern_id ON public.tasks(intern_id);')
+
+    console.log('Migrations completed successfully!')
+    process.exit(0)
+  } catch (err) {
+    console.error('Migration failed:', err)
+    process.exit(1)
+  }
+}
+
+runMigration()

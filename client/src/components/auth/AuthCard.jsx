@@ -2,7 +2,7 @@ import LoginForm from './LoginForm';
 import OverlayPanel from './OverlayPanel';
 import './AuthCard.css';
 
-const AuthCard = ({ activeRole, setActiveRole, onLogin, onRegisterClick }) => {
+const AuthCard = ({ activeRole, setActiveRole, onLogin, onRegisterClick, onForgotPassword }) => {
   const handleToggle = () => {
     setActiveRole((prev) => (prev === 'admin' ? 'intern' : 'admin'));
   };
@@ -51,7 +51,7 @@ const AuthCard = ({ activeRole, setActiveRole, onLogin, onRegisterClick }) => {
           role="tabpanel"
           aria-labelledby="admin-tab"
         >
-          <LoginForm role="admin" isActive={activeRole === 'admin'} onLogin={onLogin} />
+          <LoginForm role="admin" isActive={activeRole === 'admin'} onLogin={onLogin} onForgotPassword={onForgotPassword} />
         </div>
 
         {/* Right Half: Intern Form */}
@@ -61,7 +61,7 @@ const AuthCard = ({ activeRole, setActiveRole, onLogin, onRegisterClick }) => {
           role="tabpanel"
           aria-labelledby="intern-tab"
         >
-          <LoginForm role="intern" isActive={activeRole === 'intern'} onLogin={onLogin} onRegisterClick={onRegisterClick} />
+          <LoginForm role="intern" isActive={activeRole === 'intern'} onLogin={onLogin} onRegisterClick={onRegisterClick} onForgotPassword={onForgotPassword} />
         </div>
 
         {/* Overlay Panel (slides horizontally on top of forms, hidden on mobile) */}

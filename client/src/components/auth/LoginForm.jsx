@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 
-const LoginForm = ({ role, isActive, onLogin, onRegisterClick }) => {
+const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Validation States
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     let isValid = true;
-    
+
     // Email Validation
     if (!email) {
       setEmailError('Email is required.');
@@ -40,7 +40,7 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick }) => {
       try {
         if (onLogin) {
           const data = await onLogin(email, password);
-          if (data.role !== role) {
+          if (data.role !== role && !(role === 'admin' && data.role === 'super_admin')) {
             // Log out immediately if the role doesn't match the portal Gateway restriction
             localStorage.removeItem('token');
             localStorage.removeItem('role');
@@ -74,12 +74,12 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick }) => {
   const isAdmin = role === 'admin';
   const heading = isAdmin ? 'Admin Login' : 'Intern Login';
   const buttonText = 'Login';
-  
+
   // Tab index is set to -1 when hidden behind the overlay panel
   const tabIndex = isActive ? 0 : -1;
 
   return (
-    <div 
+    <div
       className={`form-panel-content ${isAdmin ? 'admin-side' : 'intern-side'}`}
       aria-hidden={!isActive}
     >
@@ -135,8 +135,8 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick }) => {
               tabIndex={tabIndex}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              <i 
-                className={showPassword ? 'ti ti-eye-off' : 'ti ti-eye'} 
+              <i
+                className={showPassword ? 'ti ti-eye-off' : 'ti ti-eye'}
                 aria-hidden="true"
               ></i>
             </button>
@@ -156,6 +156,18 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick }) => {
           aria-label={`${buttonText} portal`}
         >
           {buttonText}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onForgotPassword && onForgotPassword()}
+          style={{
+            background: 'none', border: 'none', color: '#3D35C4',
+            cursor: 'pointer', fontSize: '13px', marginTop: '8px',
+            textDecoration: 'underline'
+          }}
+        >
+          Forgot Password?
         </button>
 
         {/* Conditional Register Link for Interns Only */}

@@ -4,6 +4,10 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminLayout from './components/admin/AdminLayout';
 import InternLayout from './components/intern/InternLayout';
+import SuperAdminLayout from './components/superadmin/SuperAdminLayout';
+import ForgotPassword from './components/auth/ForgotPassword';
+import ResetPassword from './components/auth/ResetPassword';
+import ChangePassword from './components/auth/ChangePassword';
 import { login, logout, getRole } from './services/authService';
 import { getAllInterns, getInternById, updateIntern, updateInternPhoto } from './services/internService';
 import { getProjectByInternId, assignProject } from './services/projectService';
@@ -12,6 +16,9 @@ import { getTasksByInternId, assignTask, updateTask, deleteTask } from './servic
 function App() {
   const [page, setPage] = useState('login'); // 'login' | 'register' | 'admin' | 'intern'
   const [userRole, setUserRole] = useState(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [pendingToken, setPendingToken] = useState(null);
+  const [pendingRole, setPendingRole] = useState(null);
   
   // Registration Stepper States
   const [currentStep, setCurrentStep] = useState(1);
@@ -65,17 +72,31 @@ function App() {
 
   // On app load — restore session from localStorage
   useEffect(() => {
-    const role = getRole()
-    const token = localStorage.getItem('token')
-    if (role && token) {
-      setUserRole(role)
-      setPage(role)
-      if (role === 'admin') {
-        loadInterns();
-      }
+    const pendingTok = sessionStorage.getItem('pendingToken')
+    const pendingRol = sessionStorage.getItem('pendingRole')
+    if (pendingTok && pendingRol) {
+      setPendingToken(pendingTok)
+      setPendingRole(pendingRol)
+      setMustChangePassword(true)
+      return
+    }
+
+    const token = new URLSearchParams(window.location.search).get('token')
+    if (token) {
+      setPage('resetPassword')
     } else {
-      setPage('login');
-      setUserRole(null);
+      const role = getRole()
+      const savedToken = localStorage.getItem('token')
+      if (role && savedToken) {
+        setUserRole(role)
+        setPage(role)
+        if (role === 'admin') {
+          loadInterns();
+        }
+      } else {
+        setPage('login');
+        setUserRole(null);
+      }
     }
   }, [])
 
@@ -293,14 +314,35 @@ function App() {
   };
 
   const handleLogin = async (email, password) => {
-    const data = await login(email, password);
-    setUserRole(data.role);
-    setPage(data.role);
-    if (data.role === 'admin') {
-      await loadInterns();
+    const data = await login(email, password)
+    if (data.must_change_password) {
+      sessionStorage.setItem('pendingToken', data.token)
+      sessionStorage.setItem('pendingRole', data.role)
+      setPendingToken(data.token)
+      setPendingRole(data.role)
+      setMustChangePassword(true)
+      return data
     }
-    return data;
-  };
+    setUserRole(data.role)
+    setPage(data.role)
+    if (data.role === 'admin') {
+      await loadInterns()
+    }
+    return data
+  }
+
+  const handlePasswordChanged = () => {
+    sessionStorage.removeItem('pendingToken')
+    sessionStorage.removeItem('pendingRole')
+    setMustChangePassword(false)
+    setUserRole(pendingRole)
+    setPage(pendingRole)
+    setPendingToken(null)
+    setPendingRole(null)
+    if (pendingRole === 'admin') {
+      loadInterns()
+    }
+  }
 
   const handleLogout = () => {
     logout();
@@ -309,7 +351,7 @@ function App() {
   };
 
   const handleTogglePage = () => {
-    if (page === 'admin' || page === 'intern') {
+    if (page === 'admin' || page === 'intern' || page === 'super_admin') {
       handleLogout();
     } else if (page === 'login') {
       setCurrentStep(1);
@@ -338,16 +380,24 @@ function App() {
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      {(page === 'login' || page === 'register') && (
+      {(page === 'login' || page === 'register') && !mustChangePassword && (
         <Header mode={page} onActionClick={handleTogglePage} />
       )}
       
-      {page === 'admin' ? (
+      {mustChangePassword ? (
+        <ChangePassword token={pendingToken} onPasswordChanged={handlePasswordChanged} />
+      ) : page === 'admin' ? (
         <AdminLayout onLogout={handleLogout} />
       ) : page === 'intern' ? (
         <InternLayout onLogout={handleLogout} />
+      ) : page === 'super_admin' ? (
+        <SuperAdminLayout onLogout={handleLogout} />
       ) : page === 'login' ? (
-        <Login onLogin={handleLogin} onRegisterClick={handleTogglePage} />
+        <Login onLogin={handleLogin} onRegisterClick={handleTogglePage} onForgotPassword={() => setPage('forgotPassword')} />
+      ) : page === 'forgotPassword' ? (
+        <ForgotPassword onBack={() => setPage('login')} />
+      ) : page === 'resetPassword' ? (
+        <ResetPassword onBack={() => setPage('login')} />
       ) : (
         <Register 
           currentStep={currentStep}
