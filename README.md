@@ -26,29 +26,6 @@ A full-stack web application for managing internship programs. Built with React 
 | Admin | Manage assigned batch, approve/reject interns, assign projects and tasks |
 | Intern | View profile, view project, update task status |
 
----
-
-## Folder Structure
-project-root/
-├── client/                  # React Vite frontend
-│   ├── src/
-│   │   ├── components/      # UI components
-│   │   ├── pages/           # Login, Register
-│   │   ├── services/        # API call functions
-│   │   └── utils/           # Helpers, apiClient
-│   └── .env                 # Frontend env vars
-│
-├── server/                  # Node.js Express backend
-│   ├── db/                  # DB pool + query files
-│   ├── middleware/          # Auth, upload middleware
-│   ├── routes/              # Express route handlers
-│   ├── scripts/             # migrate, drop, seed scripts
-│   ├── utils/               # Mailer
-│   └── .env                 # Backend env vars
-│
-└── README.md
-
----
 
 ## Prerequisites
 
