@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { loginAdmin, loginIntern } from '../../services/authService';
 
 const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword }) => {
   const [email, setEmail] = useState('');
@@ -38,15 +39,20 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword 
 
     if (isValid) {
       try {
+        const data = role === 'admin'
+          ? await loginAdmin(email, password)
+          : await loginIntern(email, password);
+
+        if (data.role !== role && !(role === 'admin' && data.role === 'super_admin')) {
+          // Log out immediately if the role doesn't match the portal Gateway restriction
+          localStorage.removeItem('token');
+          localStorage.removeItem('role');
+          localStorage.removeItem('intern_id');
+          throw new Error('Invalid credentials');
+        }
+
         if (onLogin) {
-          const data = await onLogin(email, password);
-          if (data.role !== role && !(role === 'admin' && data.role === 'super_admin')) {
-            // Log out immediately if the role doesn't match the portal Gateway restriction
-            localStorage.removeItem('token');
-            localStorage.removeItem('role');
-            localStorage.removeItem('intern_id');
-            throw new Error(`Unauthorized: This gateway portal is restricted to ${role} role only.`);
-          }
+          await onLogin(email, password);
         }
       } catch (err) {
         console.warn('Login authentication failed:', err.message);
@@ -55,7 +61,7 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword 
         } else if (err.message === 'rejected') {
           setPasswordError('Your registration has been rejected.');
         } else {
-          setPasswordError(err.message || 'Authentication failed. Please check credentials.');
+          setPasswordError('Invalid credentials');
         }
       }
     }

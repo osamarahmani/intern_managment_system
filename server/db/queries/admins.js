@@ -11,15 +11,16 @@ const getAllAdmins = async () => {
 }
 
 const createAdmin = async (name, email, hashedPassword) => {
-  const id = require('crypto').randomUUID()
+  const { randomUUID } = require('crypto')
+  const id = randomUUID()
   // Insert into auth.users first to satisfy the profiles table foreign key constraint
   await pool.query(
     'INSERT INTO auth.users (id, email) VALUES ($1, $2)',
     [id, email]
   )
   const result = await pool.query(
-    `INSERT INTO profiles (id, role, name, email, password)
-     VALUES ($1, 'admin', $2, $3, $4)
+    `INSERT INTO profiles (id, role, name, email, password, must_change_password)
+     VALUES ($1, 'admin', $2, $3, $4, true)
      RETURNING id, name, email, created_at`,
     [id, name, email, hashedPassword]
   )
@@ -31,7 +32,6 @@ const deleteAdmin = async (id) => {
     'DELETE FROM profiles WHERE id = $1 AND role = $2 RETURNING id',
     [id, 'admin']
   )
-  // Also clean up from auth.users
   if (result.rows[0]) {
     await pool.query('DELETE FROM auth.users WHERE id = $1', [id])
   }

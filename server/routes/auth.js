@@ -11,7 +11,7 @@ const { sendPasswordReset } = require('../utils/mailer')
 const { verifyToken } = require('../middleware/auth')
 const router = express.Router()
 
-// POST /api/auth/login
+// POST /api/auth/login (Admin / Super Admin only)
 router.post('/login', async (req, res) => {
   const { email, password } = req.body
 
@@ -20,48 +20,26 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    let user = await userQueries.getUserByEmail(email)
-    let isProfileAdmin = false
-    if (!user) {
-      const adminQueries = require('../db/queries/admins')
-      user = await adminQueries.getAdminByEmail(email)
-      if (user) {
-        isProfileAdmin = true
-      }
-    }
+    const adminQueries = require('../db/queries/admins')
+    const user = await adminQueries.getAdminByEmail(email)
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    const passwordHash = isProfileAdmin ? user.password : user.password_hash
-    if (!passwordHash) {
+    if (user.role !== 'admin' && user.role !== 'super_admin') {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    const valid = await bcrypt.compare(password, passwordHash)
+    const valid = await bcrypt.compare(password, user.password)
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' })
-    }
-
-    // If intern, check status
-    if (user.role === 'intern') {
-      const intern = await internQueries.getInternById(user.intern_id)
-      if (!intern) {
-        return res.status(404).json({ error: 'Intern not found' })
-      }
-      if (intern.status === 'pending') {
-        return res.status(403).json({ error: 'pending' })
-      }
-      if (intern.status === 'rejected') {
-        return res.status(403).json({ error: 'rejected' })
-      }
     }
 
     const secret = process.env.JWT_SECRET || 'fallback_secret'
     
     // Check if admin must change password (only for admin, not super_admin)
-    if (isProfileAdmin && user.role === 'admin' && user.must_change_password) {
+    if (user.role === 'admin' && user.must_change_password) {
       const tempToken = jwt.sign(
         { id: user.id, email: user.email || email, role: user.role, must_change_password: true },
         secret,
@@ -75,6 +53,53 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
+      { id: user.id, email: user.email || email, role: user.role },
+      secret,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    )
+
+    res.json({ token, role: user.role })
+  } catch (err) {
+    console.error('Login error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/auth/intern-login (Approved Interns only)
+router.post('/intern-login', async (req, res) => {
+  const { email, password } = req.body
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' })
+  }
+
+  try {
+    const user = await userQueries.getUserByEmail(email)
+    if (!user || user.role !== 'intern') {
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    const intern = await internQueries.getInternById(user.intern_id)
+    if (!intern) {
+      return res.status(401).json({ error: 'Invalid credentials or account not approved' })
+    }
+    if (intern.status === 'pending') {
+      return res.status(403).json({ error: 'pending' })
+    }
+    if (intern.status === 'rejected') {
+      return res.status(403).json({ error: 'rejected' })
+    }
+    if (intern.status !== 'approved') {
+      return res.status(401).json({ error: 'Invalid credentials or account not approved' })
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash)
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    const secret = process.env.JWT_SECRET || 'fallback_secret'
+    const token = jwt.sign(
       { id: user.id, email: user.email || email, role: user.role, intern_id: user.intern_id || null },
       secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
@@ -82,7 +107,7 @@ router.post('/login', async (req, res) => {
 
     res.json({ token, role: user.role, intern_id: user.intern_id || null })
   } catch (err) {
-    console.error('Login error:', err.message)
+    console.error('Intern login error:', err.message)
     res.status(500).json({ error: err.message })
   }
 })

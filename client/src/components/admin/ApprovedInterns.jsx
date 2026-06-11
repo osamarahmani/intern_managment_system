@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import InternAvatar from '../InternAvatar';
 import * as XLSX from 'xlsx';
+import { formatDate } from '../../utils/formatDate';
 import {
   getAllInterns,
   getInternById,

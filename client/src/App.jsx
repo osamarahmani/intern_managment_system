@@ -99,6 +99,14 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    if (token) {
+      setPage('resetPassword')
+    }
+  }, [])
+
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {(page === 'login' || page === 'register') && !mustChangePassword && (
@@ -118,7 +126,7 @@ function App() {
       ) : page === 'forgotPassword' ? (
         <ForgotPassword onBack={() => setPage('login')} />
       ) : page === 'resetPassword' ? (
-        <ResetPassword onBack={() => setPage('login')} />
+        <ResetPassword token={new URLSearchParams(window.location.search).get('token')} onBack={() => setPage('login')} />
       ) : (
         <Register 
           currentStep={currentStep}

@@ -36,14 +36,12 @@ router.post('/', verifyToken, verifySuperAdmin, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10)
     const newAdmin = await adminQueries.createAdmin(name, email, hashedPassword)
-
-    try {
-      await sendAdminCredentials(email, name, password)
-    } catch (mailErr) {
-      console.error('Failed to send email:', mailErr.message)
-    }
-
     res.status(201).json(newAdmin)
+    // Send email in background
+    sendAdminCredentials(email, name, password).catch((mailErr) => {
+      console.error(`[MAIL FAILED] Could not send credentials to ${email}:`, mailErr.message)
+      // Admin is still created — super admin can manually resend or inform the admin
+    })
   } catch (err) {
     console.error('Error creating admin:', err.message)
     res.status(500).json({ error: err.message })

@@ -963,7 +963,7 @@ const SuperAdminLayout = ({ onLogout }) => {
                           type="text"
                           placeholder="Admin Name"
                           value={adminName}
-                          onChange={(e) => setAdminName(e.target.value)}
+                          onChange={(e) => { setAdminName(e.target.value); setAdminError(''); setAdminSuccess('') }}
                           required
                           style={{
                             height: '40px',
@@ -980,7 +980,7 @@ const SuperAdminLayout = ({ onLogout }) => {
                           type="email"
                           placeholder="Admin Email"
                           value={adminEmail}
-                          onChange={(e) => setAdminEmail(e.target.value)}
+                          onChange={(e) => { setAdminEmail(e.target.value); setAdminError(''); setAdminSuccess('') }}
                           required
                           style={{
                             height: '40px',
