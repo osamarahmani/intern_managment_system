@@ -58,3 +58,10 @@ export const register = async (formDataToSend) => {
     body: formDataToSend
   })
 }
+
+export const changePassword = async (newPassword, token = getToken()) => {
+  return apiClient('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ newPassword })
+  }, token)
+}

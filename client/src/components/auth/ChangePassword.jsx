@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { changePassword } from '../../services/authService'
 
 const ChangePassword = ({ token, onPasswordChanged }) => {
   const [newPassword, setNewPassword] = useState('')
@@ -25,16 +26,7 @@ const ChangePassword = ({ token, onPasswordChanged }) => {
     }
     setLoading(true)
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/change-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ newPassword })
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to change password')
+      await changePassword(newPassword, token)
       onPasswordChanged()
     } catch (err) {
       setError(err.message)

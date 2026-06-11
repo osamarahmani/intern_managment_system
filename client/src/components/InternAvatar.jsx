@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { API_URL } from '../utils/apiClient'
 
 const InternAvatar = ({ internId, name, size = 40, style = {}, photoBust = '' }) => {
   const [error, setError] = useState(false)
@@ -8,7 +9,7 @@ const InternAvatar = ({ internId, name, size = 40, style = {}, photoBust = '' })
     : 'IN'
 
   const photoUrl = internId
-    ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/interns/${internId}/photo?t=${photoBust}`
+    ? `${API_URL}/api/interns/${internId}/photo?t=${photoBust}`
     : null
 
   if (photoUrl && !error) {

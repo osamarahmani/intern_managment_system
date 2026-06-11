@@ -187,16 +187,16 @@ const SuperAdminLayout = ({ onLogout }) => {
       const avgDaysRemaining =
         totalInterns > 0
           ? Math.round(
-              safeInterns.reduce((sum, i) => {
-                const endingDateStr = i.ending_date || i.endingDate
-                const endingDate = endingDateStr ? new Date(endingDateStr) : null
-                const diff =
-                  endingDate && !isNaN(endingDate.getTime())
-                    ? Math.max(0, Math.ceil((endingDate - new Date()) / (1000 * 60 * 60 * 24)))
-                    : 0
-                return sum + diff
-              }, 0) / totalInterns
-            )
+            safeInterns.reduce((sum, i) => {
+              const endingDateStr = i.ending_date || i.endingDate
+              const endingDate = endingDateStr ? new Date(endingDateStr) : null
+              const diff =
+                endingDate && !isNaN(endingDate.getTime())
+                  ? Math.max(0, Math.ceil((endingDate - new Date()) / (1000 * 60 * 60 * 24)))
+                  : 0
+              return sum + diff
+            }, 0) / totalInterns
+          )
           : 0
 
       const totalTasks = safeTasks.length
@@ -1068,309 +1068,309 @@ const SuperAdminLayout = ({ onLogout }) => {
                             cursor: 'pointer'
                           }}
                         >
-                            {/* Top row — batch name + toggle only */}
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: '12px'
-                            }}>
-                              {/* Batch Number */}
-                              <span
+                          {/* Top row — batch name + toggle only */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px'
+                          }}>
+                            {/* Batch Number */}
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setViewBatch(batch)
+                              }}
+                              style={{
+                                fontSize: '20px',
+                                fontWeight: '700',
+                                color: '#3D35C4',
+                                cursor: 'pointer',
+                                textDecoration: 'underline'
+                              }}
+                            >
+                              {batch.batch_number}
+                            </span>
+
+                            {/* Active/Inactive Status Toggle */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  setViewBatch(batch)
+                                  handleToggleBatchStatus(batch)
                                 }}
                                 style={{
-                                  fontSize: '20px',
-                                  fontWeight: '700',
-                                  color: '#3D35C4',
+                                  width: '40px',
+                                  height: '22px',
+                                  borderRadius: '11px',
+                                  background: batch.is_active ? '#3D35C4' : '#E0E0E0',
+                                  position: 'relative',
                                   cursor: 'pointer',
-                                  textDecoration: 'underline'
+                                  transition: 'background 0.25s ease',
+                                  flexShrink: 0
                                 }}
                               >
-                                {batch.batch_number}
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '2px',
+                                  left: batch.is_active ? '20px' : '2px',
+                                  width: '18px',
+                                  height: '18px',
+                                  borderRadius: '50%',
+                                  background: '#FFFFFF',
+                                  transition: 'left 0.25s ease',
+                                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                }} />
+                              </div>
+                              <span style={{
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                color: batch.is_active ? '#3D35C4' : '#9E9E9E',
+                                minWidth: '46px'
+                              }}>
+                                {batch.is_active ? 'Active' : 'Inactive'}
                               </span>
+                            </div>
+                          </div>
 
-                              {/* Active/Inactive Status Toggle */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleToggleBatchStatus(batch)
-                                  }}
-                                  style={{
-                                    width: '40px',
-                                    height: '22px',
-                                    borderRadius: '11px',
-                                    background: batch.is_active ? '#3D35C4' : '#E0E0E0',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.25s ease',
-                                    flexShrink: 0
-                                  }}
-                                >
-                                  <div style={{
-                                    position: 'absolute',
-                                    top: '2px',
-                                    left: batch.is_active ? '20px' : '2px',
-                                    width: '18px',
-                                    height: '18px',
-                                    borderRadius: '50%',
-                                    background: '#FFFFFF',
-                                    transition: 'left 0.25s ease',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                                  }} />
+                          {/* Mentor change inline select */}
+                          {changingMentorBatchId === batch.id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                display: 'flex',
+                                gap: '8px',
+                                background: '#F9F9F9',
+                                padding: '10px',
+                                borderRadius: '6px',
+                                border: '1px solid #E0E0E0',
+                                marginTop: '4px'
+                              }}
+                            >
+                              <select
+                                value={selectedMentorId}
+                                onChange={(e) => setSelectedMentorId(e.target.value)}
+                                style={{
+                                  flex: 1,
+                                  height: '32px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #CCC',
+                                  fontSize: '13px'
+                                }}
+                              >
+                                <option value="">Select Mentor...</option>
+                                {admins.map((adm) => (
+                                  <option key={adm.id} value={adm.id}>
+                                    {adm.name} ({adm.email})
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => handleChangeMentorSubmit(batch.id, selectedMentorId)}
+                                style={{
+                                  background: '#3D35C4',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  padding: '0 12px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Save
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Middle/Bottom Row — Profiles Visibility, Show Key, and Mentor stack */}
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '12px',
+                            borderTop: '1px solid #EEEEEE',
+                            paddingTop: '12px',
+                            marginTop: '4px'
+                          }}>
+                            {/* Left: Visibility & Show Key */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>
+                                  Profiles Visibility:
+                                </span>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                  {[
+                                    { mode: 'public', label: 'Public' },
+                                    { mode: 'private', label: 'Private' },
+                                    { mode: 'intern_choice', label: "Intern's Choice" }
+                                  ].map(({ mode, label }) => {
+                                    const isActive = (batch.visibility_mode || 'intern_choice') === mode
+                                    return (
+                                      <button
+                                        key={mode}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleUpdateVisibilityMode(batch.id, mode)
+                                        }}
+                                        style={{
+                                          background: isActive ? '#3D35C4' : '#F5F5F5',
+                                          color: isActive ? '#FFFFFF' : '#616161',
+                                          border: 'none',
+                                          borderRadius: '8px',
+                                          padding: '6px 14px',
+                                          fontSize: '12px',
+                                          fontWeight: isActive ? '600' : '400',
+                                          cursor: 'pointer',
+                                          transition: 'background 0.2s, color 0.2s'
+                                        }}
+                                      >
+                                        {label}
+                                      </button>
+                                    )
+                                  })}
                                 </div>
-                                <span style={{
+                                {savedVisibility[batch.id] && (
+                                  <span style={{
+                                    color: '#3D35C4',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    marginLeft: '4px'
+                                  }}>
+                                    ✓ Saved
+                                  </span>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setVisibleKeyBatchId(visibleKeyBatchId === batch.id ? null : batch.id)
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: '1px solid #E0E0E0',
+                                  borderRadius: '6px',
+                                  padding: '5px 12px',
                                   fontSize: '12px',
                                   fontWeight: '500',
-                                  color: batch.is_active ? '#3D35C4' : '#9E9E9E',
-                                  minWidth: '46px'
-                                }}>
-                                  {batch.is_active ? 'Active' : 'Inactive'}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Mentor change inline select */}
-                            {changingMentorBatchId === batch.id && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                  display: 'flex',
-                                  gap: '8px',
-                                  background: '#F9F9F9',
-                                  padding: '10px',
-                                  borderRadius: '6px',
-                                  border: '1px solid #E0E0E0',
-                                  marginTop: '4px'
+                                  color: '#757575',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
                                 }}
                               >
-                                <select
-                                  value={selectedMentorId}
-                                  onChange={(e) => setSelectedMentorId(e.target.value)}
-                                  style={{
-                                    flex: 1,
-                                    height: '32px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #CCC',
-                                    fontSize: '13px'
-                                  }}
-                                >
-                                  <option value="">Select Mentor...</option>
-                                  {admins.map((adm) => (
-                                    <option key={adm.id} value={adm.id}>
-                                      {adm.name} ({adm.email})
-                                    </option>
-                                  ))}
-                                </select>
-                                <button
-                                  type="button"
-                                  onClick={() => handleChangeMentorSubmit(batch.id, selectedMentorId)}
-                                  style={{
-                                    background: '#3D35C4',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    padding: '0 12px',
-                                    fontSize: '12px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  Save
-                                </button>
-                              </div>
-                            )}
-
-                            {/* Middle/Bottom Row — Profiles Visibility, Show Key, and Mentor stack */}
-                            <div style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              gap: '12px',
-                              borderTop: '1px solid #EEEEEE',
-                              paddingTop: '12px',
-                              marginTop: '4px'
-                            }}>
-                              {/* Left: Visibility & Show Key */}
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>
-                                    Profiles Visibility:
-                                  </span>
-                                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                    {[
-                                      { mode: 'public', label: 'Public' },
-                                      { mode: 'private', label: 'Private' },
-                                      { mode: 'intern_choice', label: "Intern's Choice" }
-                                    ].map(({ mode, label }) => {
-                                      const isActive = (batch.visibility_mode || 'intern_choice') === mode
-                                      return (
-                                        <button
-                                          key={mode}
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleUpdateVisibilityMode(batch.id, mode)
-                                          }}
-                                          style={{
-                                            background: isActive ? '#3D35C4' : '#F5F5F5',
-                                            color: isActive ? '#FFFFFF' : '#616161',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            padding: '6px 14px',
-                                            fontSize: '12px',
-                                            fontWeight: isActive ? '600' : '400',
-                                            cursor: 'pointer',
-                                            transition: 'background 0.2s, color 0.2s'
-                                          }}
-                                        >
-                                          {label}
-                                        </button>
-                                      )
-                                    })}
-                                  </div>
-                                  {savedVisibility[batch.id] && (
-                                    <span style={{
-                                      color: '#3D35C4',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      marginLeft: '4px'
-                                    }}>
-                                      ✓ Saved
-                                    </span>
-                                  )}
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setVisibleKeyBatchId(visibleKeyBatchId === batch.id ? null : batch.id)
-                                  }}
-                                  style={{
-                                    background: 'none',
-                                    border: '1px solid #E0E0E0',
-                                    borderRadius: '6px',
-                                    padding: '5px 12px',
-                                    fontSize: '12px',
-                                    fontWeight: '500',
-                                    color: '#757575',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                >
-                                  <i className="ti ti-eye" style={{ fontSize: '14px' }} />
-                                  {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
-                                </button>
-                              </div>
-
-                              {/* Right: Mentor stack + Change Mentor button */}
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.4 }}>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e' }}>
-                                    {batch.mentor_name || 'Unassigned'}
-                                  </span>
-                                  <span style={{ fontSize: 11, color: '#888' }}>
-                                    {batch.mentor_email}
-                                  </span>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setChangingMentorBatchId(changingMentorBatchId === batch.id ? null : batch.id)
-                                    setSelectedMentorId(batch.created_by || '')
-                                  }}
-                                  style={{
-                                    background: 'transparent',
-                                    color: '#3D35C4',
-                                    border: '1px solid #3D35C4',
-                                    borderRadius: '4px',
-                                    padding: '2px 8px',
-                                    fontSize: '11px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  Change Mentor
-                                </button>
-                              </div>
+                                <i className="ti ti-eye" style={{ fontSize: '14px' }} />
+                                {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
+                              </button>
                             </div>
 
-                            {/* Key reveal details */}
-                            {visibleKeyBatchId === batch.id && (
-                              <div style={{
-                                marginTop: '10px',
-                                background: '#F8F7FF',
-                                border: '1px solid #3D35C4',
-                                borderRadius: '8px',
-                                padding: '12px 16px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px'
-                              }}>
-                                <i className="ti ti-key" style={{ color: '#3D35C4', fontSize: '16px', flexShrink: 0 }} />
-                                <span style={{
-                                  flex: 1,
-                                  fontFamily: 'monospace',
-                                  fontSize: '13px',
-                                  color: '#3D35C4',
-                                  fontWeight: '600',
-                                  letterSpacing: '0.05em',
-                                  wordBreak: 'break-all'
-                                }}>
-                                  {batch.registration_key}
+                            {/* Right: Mentor stack + Change Mentor button */}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.4 }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e' }}>
+                                  {batch.mentor_name || 'Unassigned'}
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    navigator.clipboard.writeText(batch.registration_key)
-                                    setCopiedBatchId(batch.id)
-                                    setTimeout(() => setCopiedBatchId(null), 2000)
-                                  }}
-                                  style={{
-                                    background: copiedBatchId === batch.id ? '#03DAC6' : '#3D35C4',
-                                    color: copiedBatchId === batch.id ? '#000000' : '#FFFFFF',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    padding: '5px 12px',
-                                    fontSize: '12px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    flexShrink: 0,
-                                    transition: 'background 0.2s'
-                                  }}
-                                >
-                                  {copiedBatchId === batch.id ? '✓ Copied' : 'Copy'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setVisibleKeyBatchId(null)
-                                  }}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    color: '#9E9E9E',
-                                    fontSize: '18px',
-                                    lineHeight: 1,
-                                    padding: '0 4px',
-                                    flexShrink: 0
-                                  }}
-                                >
-                                  ×
-                                </button>
+                                <span style={{ fontSize: 11, color: '#888' }}>
+                                  {batch.mentor_email}
+                                </span>
                               </div>
-                            )}
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setChangingMentorBatchId(changingMentorBatchId === batch.id ? null : batch.id)
+                                  setSelectedMentorId(batch.created_by || '')
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  color: '#3D35C4',
+                                  border: '1px solid #3D35C4',
+                                  borderRadius: '4px',
+                                  padding: '2px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Change Mentor
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Key reveal details */}
+                          {visibleKeyBatchId === batch.id && (
+                            <div style={{
+                              marginTop: '10px',
+                              background: '#F8F7FF',
+                              border: '1px solid #3D35C4',
+                              borderRadius: '8px',
+                              padding: '12px 16px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px'
+                            }}>
+                              <i className="ti ti-key" style={{ color: '#3D35C4', fontSize: '16px', flexShrink: 0 }} />
+                              <span style={{
+                                flex: 1,
+                                fontFamily: 'monospace',
+                                fontSize: '13px',
+                                color: '#3D35C4',
+                                fontWeight: '600',
+                                letterSpacing: '0.05em',
+                                wordBreak: 'break-all'
+                              }}>
+                                {batch.registration_key}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  navigator.clipboard.writeText(batch.registration_key)
+                                  setCopiedBatchId(batch.id)
+                                  setTimeout(() => setCopiedBatchId(null), 2000)
+                                }}
+                                style={{
+                                  background: copiedBatchId === batch.id ? '#03DAC6' : '#3D35C4',
+                                  color: copiedBatchId === batch.id ? '#000000' : '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '5px 12px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                  transition: 'background 0.2s'
+                                }}
+                              >
+                                {copiedBatchId === batch.id ? '✓ Copied' : 'Copy'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setVisibleKeyBatchId(null)
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  color: '#9E9E9E',
+                                  fontSize: '18px',
+                                  lineHeight: 1,
+                                  padding: '0 4px',
+                                  flexShrink: 0
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )
                     })}

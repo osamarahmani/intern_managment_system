@@ -104,6 +104,14 @@ function App() {
     const token = params.get('token')
     if (token) {
       setPage('resetPassword')
+      return
+    }
+
+    const savedToken = localStorage.getItem('token')
+    const savedRole = localStorage.getItem('role')
+    if (savedToken && savedRole) {
+      setUserRole(savedRole)
+      setPage(savedRole)
     }
   }, [])
 
