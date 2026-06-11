@@ -56,7 +56,7 @@ const sendPasswordReset = async (email, resetLink) => {
           </a>
           
           <p style="font-size: 14px; color: #ef4444; margin-top: 30px; font-weight: 500;">
-            ⏳ This link will expire in 1 hour.
+              ⏱️ This link will expire in 1 hour.
           </p>
         </div>
         <div style="background-color: #f3f4f6; padding: 20px 30px; text-align: center;">
