@@ -33,7 +33,7 @@ const sendAdminCredentials = async (email, name, password) => {
   `;
 
   await transporter.sendMail({
-    from: `"Your App Name" <${process.env.GMAIL_USER}>`,
+    from: `"Tarcin Intern Management System" <${process.env.GMAIL_USER}>`,
     to: email,
     subject: 'Welcome! Your Admin Account Credentials',
     html: htmlContent
@@ -69,7 +69,7 @@ const sendPasswordReset = async (email, resetLink) => {
   `;
 
   await transporter.sendMail({
-    from: `"Your App Name" <${process.env.GMAIL_USER}>`,
+    from: `"Tarcin Intern Management System" <${process.env.GMAIL_USER}>`,
     to: email,
     subject: 'Action Required: Password Reset Request',
     html: htmlContent
