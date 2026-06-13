@@ -15,6 +15,7 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
 
   // Tab details states
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'project' | 'tasks'
+  const [teammateDetails, setTeammateDetails] = useState(null);
   const [teammateProject, setTeammateProject] = useState(null);
   const [teammateTasks, setTeammateTasks] = useState([]);
   const [loadingTeammateDetails, setLoadingTeammateDetails] = useState(false);
@@ -87,9 +88,14 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
   // Fetch projects and tasks for the selected teammate detail view
   const fetchTeammateDetails = async (mateId) => {
     setLoadingTeammateDetails(true);
+    setTeammateDetails(null);
     setTeammateProject(null);
     setTeammateTasks([]);
     try {
+      // Fetch details
+      const detailsData = await getInternById(mateId);
+      setTeammateDetails(detailsData);
+
       // Fetch project
       const projData = await getProjectByInternId(mateId);
       setTeammateProject(projData);
@@ -424,10 +430,10 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
                         marginBottom: '28px'
                       }}>
                         <InternAvatar
-                          internId={selectedTeammate.id}
-                          name={selectedTeammate.name}
+                          internId={teammateDetails?.id || selectedTeammate.id}
+                          name={teammateDetails?.name || selectedTeammate.name}
                           size={80}
-                          photoBust={selectedTeammate._photoBust || ''}
+                          photoBust={teammateDetails?._photoBust || selectedTeammate._photoBust || ''}
                           style={{
                             border: '3px solid #EEEEEE',
                           }}
@@ -435,10 +441,10 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <span style={{ fontSize: '20px', fontWeight: '700', color: '#212121' }}>
-                            {selectedTeammate.name}
+                            {teammateDetails?.name || selectedTeammate.name}
                           </span>
                           <span style={{ fontSize: '13px', color: '#757575' }}>
-                            {selectedTeammate.dept} — {selectedTeammate.college_name}
+                            {teammateDetails?.dept || selectedTeammate.dept} — {teammateDetails?.college_name || selectedTeammate.college_name}
                           </span>
 
                         </div>
@@ -447,9 +453,9 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
                       {/* Info fields */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         {[
-                          { label: 'NAME', value: selectedTeammate.name },
-                          { label: 'COLLEGE', value: selectedTeammate.college_name },
-                          { label: 'DEPARTMENT', value: selectedTeammate.dept }
+                          { label: 'NAME', value: teammateDetails?.name || selectedTeammate.name },
+                          { label: 'COLLEGE', value: teammateDetails?.college_name || selectedTeammate.college_name },
+                          { label: 'DEPARTMENT', value: teammateDetails?.dept || selectedTeammate.dept }
                         ].map(({ label, value }) => (
                           <div key={label} style={{ display: 'flex', flexDirection: 'column' }}>
                             <label style={{

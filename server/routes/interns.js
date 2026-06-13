@@ -1,6 +1,6 @@
 const express = require('express')
 const internQueries = require('../db/queries/interns')
-const { verifyToken, verifyAdmin } = require('../middleware/auth')
+const { verifyToken, verifyAdmin, verifyTeammateAccess } = require('../middleware/auth')
 const upload = require('../middleware/upload')
 const router = express.Router()
 
@@ -33,11 +33,8 @@ router.get('/batch/:batchNumber', verifyToken, async (req, res) => {
 })
 
 // GET /api/interns/:id
-router.get('/:id', verifyToken, async (req, res) => {
+router.get('/:id', verifyToken, verifyTeammateAccess, async (req, res) => {
   try {
-    if (req.user.role === 'intern' && req.params.id !== req.user.intern_id) {
-      return res.status(403).json({ error: 'Access denied: cannot view other profiles directly' })
-    }
     const intern = await internQueries.getInternById(req.params.id)
     if (!intern) {
       return res.status(404).json({ error: 'Intern not found' })

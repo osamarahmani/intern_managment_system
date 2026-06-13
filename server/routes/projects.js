@@ -1,18 +1,16 @@
 const express = require('express')
 const projectQueries = require('../db/queries/projects')
-const { verifyToken, verifyAdmin } = require('../middleware/auth')
+const { verifyToken, verifyAdmin, verifyTeammateAccess } = require('../middleware/auth')
 const router = express.Router()
 
 // GET /api/projects/intern/:internId
-router.get('/intern/:internId', verifyToken, async (req, res) => {
+router.get('/intern/:internId', verifyToken, verifyTeammateAccess, async (req, res) => {
   try {
     const { internId } = req.params
-    if (req.user.role === 'intern' && internId !== req.user.intern_id) {
-      return res.status(403).json({ error: 'Access denied: cannot view projects of other interns' })
-    }
     const project = await projectQueries.getProjectByInternId(internId)
     res.json(project)
   } catch (err) {
+
     console.error('Error fetching project:', err.message)
     res.status(500).json({ error: err.message })
   }
