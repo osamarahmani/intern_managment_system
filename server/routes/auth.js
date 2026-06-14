@@ -23,6 +23,11 @@ router.post('/login', async (req, res) => {
     const adminQueries = require('../db/queries/admins')
     const user = await adminQueries.getAdminByEmail(email)
 
+    console.log("LOGIN EMAIL:", email)
+    console.log("USER FOUND:", !!user)
+    console.log("USER ROLE:", user?.role)
+    console.log("HASH START:", user?.password?.slice(0, 30))
+
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
@@ -32,6 +37,7 @@ router.post('/login', async (req, res) => {
     }
 
     const valid = await bcrypt.compare(password, user.password)
+    console.log("PASSWORD VALID:", valid)
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
