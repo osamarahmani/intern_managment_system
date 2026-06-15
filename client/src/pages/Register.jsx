@@ -63,7 +63,7 @@ const Register = ({
     }
   };
 
-  // Render form contents dynamically based on active step
+  // Render form contents dynamically based on active step state (1-4) with appropriate props and handlers
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
