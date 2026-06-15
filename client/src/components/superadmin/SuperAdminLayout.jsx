@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import ApprovedInterns from '../admin/ApprovedInterns'
 import PendingApprovals from '../admin/PendingApprovals'
+import ArchivedInterns from '../admin/ArchivedInterns'
 import InternAvatar from '../InternAvatar'
 import { getBatches, createBatch, updateBatch, changeBatchMentor } from '../../services/batchService'
 import { getAllAdmins, createAdmin, deleteAdmin } from '../../services/adminService'
@@ -10,7 +11,7 @@ import { getProjectByInternId } from '../../services/projectService'
 import { getTasksByInternId } from '../../services/taskService'
 
 const SuperAdminLayout = ({ onLogout }) => {
-  const [activePage, setActivePage] = useState('dashboard') // 'dashboard' | 'pending' | 'admins' | 'interns'
+  const [activePage, setActivePage] = useState('dashboard') // 'dashboard' | 'pending' | 'admins' | 'archived'
   const [batches, setBatches] = useState([])
   const [admins, setAdmins] = useState([])
   const [pendingInterns, setPendingInterns] = useState([])
@@ -463,6 +464,13 @@ const SuperAdminLayout = ({ onLogout }) => {
             style={activePage === 'admins' ? activeTabStyle : inactiveTabStyle}
           >
             Admin Management
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePage('archived')}
+            style={activePage === 'archived' ? activeTabStyle : inactiveTabStyle}
+          >
+            Archived Interns
           </button>
         </div>
 
@@ -1440,6 +1448,11 @@ const SuperAdminLayout = ({ onLogout }) => {
                 <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#757575', padding: '20px' }}>No admins found</div>
               )}
             </div>
+          </div>
+        )}
+        {activePage === 'archived' && (
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <ArchivedInterns onRestoreSuccess={fetchPending} />
           </div>
         )}
       </div>

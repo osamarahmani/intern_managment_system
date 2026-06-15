@@ -7,7 +7,8 @@ import {
   getInternById,
   getInternsByBatch,
   updateIntern,
-  updateInternPhoto
+  updateInternPhoto,
+  archiveIntern
 } from '../../services/internService';
 import { getBatches, createBatch, updateBatch } from '../../services/batchService';
 import { getProjectByInternId, assignProject } from '../../services/projectService';
@@ -505,6 +506,22 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       alert('Failed to save: ' + err.message);
     } finally {
       setSavingDetails(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!selectedIntern) return;
+    if (window.confirm("Are you sure you want to archive this intern? They will lose access but their data will be preserved.")) {
+      try {
+        await archiveIntern(selectedIntern.id);
+        // Remove intern from active list
+        setInterns((prev) => prev.filter((i) => i.id !== selectedIntern.id));
+        // Reset active intern panel
+        setSelectedIntern(null);
+        alert("Intern archived successfully.");
+      } catch (err) {
+        alert("Failed to archive intern: " + err.message);
+      }
     }
   };
 
@@ -1870,6 +1887,24 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                             }}
                           >
                             {savingDetails ? 'Saving...' : 'Save Changes'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleArchive}
+                            style={{
+                              height: '40px',
+                              background: '#B00020',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontWeight: '600',
+                              fontSize: '13px',
+                              cursor: 'pointer',
+                              padding: '0 24px',
+                              marginLeft: 'auto'
+                            }}
+                          >
+                            Archive Intern
                           </button>
                           {detailsSaved && (
                             <span style={{ fontSize: '13px', color: '#03DAC6', fontWeight: '500' }}>

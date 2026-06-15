@@ -40,3 +40,25 @@ export const updateInternPhoto = async (id, photoFile, token = getToken()) => {
     body: formData
   }, token)
 }
+
+export const archiveIntern = async (id, token = getToken()) => {
+  return apiClient(`/api/interns/${id}/archive`, {
+    method: 'PATCH'
+  }, token)
+}
+
+export const restoreIntern = async (id, token = getToken()) => {
+  return apiClient(`/api/interns/${id}/restore`, {
+    method: 'PATCH'
+  }, token)
+}
+
+export const getArchivedInterns = async (token = getToken()) => {
+  return apiClient('/api/interns/archived', {}, token)
+}
+
+export const permanentDeleteIntern = async (id, token = getToken()) => {
+  return apiClient(`/api/interns/${id}/permanent`, {
+    method: 'DELETE'
+  }, token)
+}

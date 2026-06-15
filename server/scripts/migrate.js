@@ -120,7 +120,9 @@ const runMigration = async () => {
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name text;",
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email text UNIQUE;",
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password text;",
-      "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT true;"
+      "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT true;",
+      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;",
+      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS archived_at timestamptz;"
     ]
 
     for (const addCol of colAdditions) {

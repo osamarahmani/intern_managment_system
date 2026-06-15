@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import ApprovedInterns from './ApprovedInterns';
 import PendingApprovals from './PendingApprovals';
+import ArchivedInterns from './ArchivedInterns';
 import { getAllInterns, approveIntern, rejectIntern } from '../../services/internService';
 import './AdminLayout.css';
 
 const AdminLayout = ({ onLogout }) => {
   const [pendingInterns, setPendingInterns] = useState([]);
-  const [activePage, setActivePage] = useState('dashboard'); // 'dashboard' | 'pending'
+  const [activePage, setActivePage] = useState('dashboard'); // 'dashboard' | 'pending' | 'archived'
 
   useEffect(() => {
     if (!window.history.state || window.history.state.activePage !== activePage) {
@@ -150,6 +151,25 @@ const AdminLayout = ({ onLogout }) => {
           >
             Pending Approvals
           </button>
+          <button
+            type="button"
+            onClick={() => setActivePage('archived')}
+            style={activePage === 'archived' ? activeTabStyle : inactiveTabStyle}
+            onMouseEnter={(e) => {
+              if (activePage !== 'archived') {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                e.currentTarget.style.color = '#fff';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activePage !== 'archived') {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+              }
+            }}
+          >
+            Archived Interns
+          </button>
         </div>
 
         {/* Right side */}
@@ -244,6 +264,9 @@ const AdminLayout = ({ onLogout }) => {
             onApprove={handleApprove}
             onReject={handleReject}
           />
+        )}
+        {activePage === 'archived' && (
+          <ArchivedInterns onRestoreSuccess={fetchPending} />
         )}
       </div>
     </div>

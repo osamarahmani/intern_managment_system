@@ -32,6 +32,18 @@ router.get('/batch/:batchNumber', verifyToken, async (req, res) => {
   }
 })
 
+
+// GET /api/interns/archived — protected by verifyToken + verifyAdmin
+router.get('/archived', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const archived = await internQueries.getArchivedInterns()
+    res.json(archived)
+  } catch (err) {
+    console.error('Fetch archived interns error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // GET /api/interns/:id
 router.get('/:id', verifyToken, verifyTeammateAccess, async (req, res) => {
   try {
@@ -168,6 +180,48 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, message: 'Intern deleted' })
   } catch (err) {
     console.error('Delete intern error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PATCH /api/interns/:id/archive — protected by verifyToken + verifyAdmin
+router.patch('/:id/archive', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const updated = await internQueries.archiveIntern(req.params.id)
+    if (!updated) {
+      return res.status(404).json({ error: 'Intern not found' })
+    }
+    res.json({ success: true, intern: updated })
+  } catch (err) {
+    console.error('Archive intern error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PATCH /api/interns/:id/restore — protected by verifyToken + verifyAdmin
+router.patch('/:id/restore', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const updated = await internQueries.restoreIntern(req.params.id)
+    if (!updated) {
+      return res.status(404).json({ error: 'Intern not found' })
+    }
+    res.json({ success: true, intern: updated })
+  } catch (err) {
+    console.error('Restore intern error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// DELETE /api/interns/:id/permanent — protected by verifyToken + verifyAdmin
+router.delete('/:id/permanent', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const deleted = await internQueries.permanentDeleteIntern(req.params.id)
+    if (!deleted) {
+      return res.status(404).json({ error: 'Intern not found' })
+    }
+    res.json({ success: true, message: 'Intern permanently deleted' })
+  } catch (err) {
+    console.error('Permanent delete intern error:', err.message)
     res.status(500).json({ error: err.message })
   }
 })

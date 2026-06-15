@@ -83,6 +83,9 @@ router.post('/intern-login', async (req, res) => {
     if (!intern) {
       return res.status(401).json({ error: 'Invalid credentials or account not approved' })
     }
+    if (intern.is_archived === true) {
+      return res.status(403).json({ error: 'Your account has been archived. Please contact your admin.' })
+    }
     if (intern.status === 'pending') {
       return res.status(403).json({ error: 'pending' })
     }
@@ -213,9 +216,14 @@ router.post('/forgot-password', async (req, res) => {
     const adminQueries = require('../db/queries/admins')
     const admin = await adminQueries.getAdminByEmail(email)
     const user = await userQueries.getUserByEmail(email)
+    const intern = await internQueries.getInternByEmail(email)
 
     if (!admin && !user) {
       return res.json({ success: true, message: 'If this email is registered, a reset link has been sent to your inbox.' })
+    }
+
+    if (user && user.role === 'intern' && intern && intern.is_archived === true) {
+      return res.status(403).json({ error: 'Your account has been archived. Please contact your admin.' })
     }
 
     const token = crypto.randomBytes(32).toString('hex')
