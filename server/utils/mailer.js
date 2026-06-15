@@ -10,6 +10,14 @@ const transporter = nodemailer.createTransport({
   }
 })
 
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('MAIL CONFIG ERROR:', error)
+  } else {
+    console.log('MAIL SERVER READY')
+  }
+})
+
 const sendAdminCredentials = async (email, name, password) => {
   const htmlContent = `
     <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9fafb; padding: 40px 20px; color: #333333;">
