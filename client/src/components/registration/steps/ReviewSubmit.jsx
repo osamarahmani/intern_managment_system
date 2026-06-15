@@ -1,14 +1,25 @@
+import { useState } from 'react';
 import { formatDate } from '../../../utils/formatDate';
 import InternAvatar from '../../InternAvatar';
+import LoadingSpinner from '../../LoadingSpinner';
 
 const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
-  // Safe helper to format dates for display (e.g. YYYY-MM-DD to standard reading format)
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    try {
+      await onSubmit();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
 
 
   return (
     <div className="review-step-wrapper">
-      {/* Intern ID Card Container */}
+      {isLoading && <LoadingSpinner message="Submitting your registration..." />}
       <div className="intern-id-card">
         {/* Left Column (30% Width - Purple ID Badge Header) */}
         <div className="id-card-left">
@@ -97,16 +108,20 @@ const ReviewSubmit = ({ formData, onBack, onSubmit }) => {
           className="ghost-submit-btn reg-back-btn"
           onClick={onBack}
           aria-label="Return to Program Details step"
+          disabled={isLoading}
+          style={{ opacity: isLoading ? 0.7 : 1, cursor: isLoading ? 'not-allowed' : 'pointer' }}
         >
           Back
         </button>
         <button
           type="button"
           className="primary-submit-btn reg-register-btn"
-          onClick={onSubmit}
+          onClick={handleSubmit}
           aria-label="Complete registration and submit application"
+          disabled={isLoading}
+          style={{ opacity: isLoading ? 0.7 : 1, cursor: isLoading ? 'not-allowed' : 'pointer' }}
         >
-          Register
+          {isLoading ? 'Submitting...' : 'Register'}
         </button>
       </div>
     </div>

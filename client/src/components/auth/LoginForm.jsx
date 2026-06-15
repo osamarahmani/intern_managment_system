@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { loginAdmin, loginIntern } from '../../services/authService';
+import LoadingSpinner from '../LoadingSpinner';
 
 const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Validation States
   const [emailError, setEmailError] = useState('');
@@ -38,6 +40,7 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword 
     }
 
     if (isValid) {
+      setIsLoading(true);
       try {
         const data = role === 'admin'
           ? await loginAdmin(email, password)
@@ -63,6 +66,8 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword 
         } else {
           setPasswordError('Invalid credentials');
         }
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -89,6 +94,8 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword 
       className={`form-panel-content ${isAdmin ? 'admin-side' : 'intern-side'}`}
       aria-hidden={!isActive}
     >
+      {isLoading && <LoadingSpinner message="Signing in..." />}
+      
       {/* Heading */}
       <h2 className="form-heading">{heading}</h2>
 
@@ -160,8 +167,10 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword 
           className={`primary-submit-btn ${isAdmin ? 'admin-btn' : 'intern-btn'}`}
           tabIndex={tabIndex}
           aria-label={`${buttonText} portal`}
+          disabled={isLoading}
+          style={{ opacity: isLoading ? 0.7 : 1, cursor: isLoading ? 'not-allowed' : 'pointer' }}
         >
-          {buttonText}
+          {isLoading ? 'Signing in...' : buttonText}
         </button>
 
         <button
