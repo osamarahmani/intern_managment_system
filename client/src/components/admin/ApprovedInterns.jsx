@@ -10,7 +10,7 @@ import {
   updateInternPhoto,
   archiveIntern
 } from '../../services/internService';
-import { getBatches, createBatch, updateBatch } from '../../services/batchService';
+import { getBatches, createBatch, updateBatch, archiveBatch } from '../../services/batchService';
 import { getProjectByInternId, assignProject } from '../../services/projectService';
 import { getTasksByInternId, assignTask, deleteTask } from '../../services/taskService';
 
@@ -693,6 +693,27 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     }
   };
 
+  const handleArchiveBatch = async (batch) => {
+    if (!window.confirm(`Archive batch "${batch.batch_number}"? It will be hidden from batch management and registration, but existing intern data will be preserved.`)) {
+      return;
+    }
+
+    try {
+      await archiveBatch(batch.id);
+      setBatches((prev) => prev.filter((b) => b.id !== batch.id));
+      if (summaryBatch?.id === batch.id) {
+        setSummaryBatch(null);
+      }
+      if (selectedBatch?.id === batch.id) {
+        setSelectedBatch(null);
+        setActiveView('batches');
+      }
+      alert('Batch archived successfully.');
+    } catch (err) {
+      alert(`Archive batch failed: ${err.message}`);
+    }
+  };
+
   const handleAssignProject = async (e) => {
     e.preventDefault();
     if (!selectedIntern) return;
@@ -1352,8 +1373,9 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                           )}
                         </div>
 
-                        {/* Bottom row — Show Key button */}
+                        {/* Bottom row — Show Key and archive actions */}
                         <div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1379,6 +1401,30 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                             <i className="ti ti-eye" style={{ fontSize: '14px' }} />
                             {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
                           </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleArchiveBatch(batch);
+                            }}
+                            style={{
+                              background: '#FFF3E0',
+                              border: '1px solid #E65100',
+                              borderRadius: '6px',
+                              padding: '5px 12px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              color: '#E65100',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <i className="ti ti-archive" style={{ fontSize: '14px' }} />
+                            Archive Batch
+                          </button>
+                          </div>
 
                           {/* Key reveal card */}
                           {visibleKeyBatchId === batch.id && (

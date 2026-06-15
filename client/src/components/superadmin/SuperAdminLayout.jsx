@@ -3,8 +3,9 @@ import * as XLSX from 'xlsx'
 import ApprovedInterns from '../admin/ApprovedInterns'
 import PendingApprovals from '../admin/PendingApprovals'
 import ArchivedInterns from '../admin/ArchivedInterns'
+import ArchivedBatches from '../admin/ArchivedBatches'
 import InternAvatar from '../InternAvatar'
-import { getBatches, createBatch, updateBatch, changeBatchMentor } from '../../services/batchService'
+import { getBatches, createBatch, updateBatch, changeBatchMentor, archiveBatch } from '../../services/batchService'
 import { getAllAdmins, createAdmin, deleteAdmin } from '../../services/adminService'
 import { getAllInterns, approveIntern, rejectIntern, getInternsByBatch } from '../../services/internService'
 import { getProjectByInternId } from '../../services/projectService'
@@ -351,6 +352,26 @@ const SuperAdminLayout = ({ onLogout }) => {
     }
   }
 
+  const handleArchiveBatch = async (batch) => {
+    if (!window.confirm(`Archive batch "${batch.batch_number}"? It will be hidden from batch management and registration, but existing intern data will be preserved.`)) {
+      return
+    }
+
+    try {
+      await archiveBatch(batch.id)
+      setBatches((prev) => prev.filter((b) => b.id !== batch.id))
+      if (summaryBatch?.id === batch.id) {
+        setSummaryBatch(null)
+      }
+      if (viewBatch?.id === batch.id) {
+        setViewBatch(null)
+      }
+      alert('Batch archived successfully.')
+    } catch (err) {
+      alert(`Archive batch failed: ${err.message}`)
+    }
+  }
+
   const handleChangeMentorSubmit = async (batchId, adminId) => {
     try {
       await changeBatchMentor(batchId, adminId)
@@ -470,7 +491,7 @@ const SuperAdminLayout = ({ onLogout }) => {
             onClick={() => setActivePage('archived')}
             style={activePage === 'archived' ? activeTabStyle : inactiveTabStyle}
           >
-            Archived Interns
+            Archives
           </button>
         </div>
 
@@ -1252,29 +1273,54 @@ const SuperAdminLayout = ({ onLogout }) => {
                                 )}
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setVisibleKeyBatchId(visibleKeyBatchId === batch.id ? null : batch.id)
-                                }}
-                                style={{
-                                  background: 'none',
-                                  border: '1px solid #E0E0E0',
-                                  borderRadius: '6px',
-                                  padding: '5px 12px',
-                                  fontSize: '12px',
-                                  fontWeight: '500',
-                                  color: '#757575',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px'
-                                }}
-                              >
-                                <i className="ti ti-eye" style={{ fontSize: '14px' }} />
-                                {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
-                              </button>
+                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setVisibleKeyBatchId(visibleKeyBatchId === batch.id ? null : batch.id)
+                                  }}
+                                  style={{
+                                    background: 'none',
+                                    border: '1px solid #E0E0E0',
+                                    borderRadius: '6px',
+                                    padding: '5px 12px',
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    color: '#757575',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                >
+                                  <i className="ti ti-eye" style={{ fontSize: '14px' }} />
+                                  {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleArchiveBatch(batch)
+                                  }}
+                                  style={{
+                                    background: '#FFF3E0',
+                                    border: '1px solid #E65100',
+                                    borderRadius: '6px',
+                                    padding: '5px 12px',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    color: '#E65100',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                >
+                                  <i className="ti ti-archive" style={{ fontSize: '14px' }} />
+                                  Archive Batch
+                                </button>
+                              </div>
                             </div>
 
                             {/* Right: Mentor stack + Change Mentor button */}
@@ -1451,7 +1497,8 @@ const SuperAdminLayout = ({ onLogout }) => {
           </div>
         )}
         {activePage === 'archived' && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <ArchivedBatches onRestoreSuccess={fetchBatches} />
             <ArchivedInterns onRestoreSuccess={fetchPending} />
           </div>
         )}

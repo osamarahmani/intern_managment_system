@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import ApprovedInterns from './ApprovedInterns';
 import PendingApprovals from './PendingApprovals';
 import ArchivedInterns from './ArchivedInterns';
+import ArchivedBatches from './ArchivedBatches';
 import { getAllInterns, approveIntern, rejectIntern } from '../../services/internService';
 import './AdminLayout.css';
 
@@ -168,7 +169,7 @@ const AdminLayout = ({ onLogout }) => {
               }
             }}
           >
-            Archived Interns
+            Archives
           </button>
         </div>
 
@@ -266,7 +267,10 @@ const AdminLayout = ({ onLogout }) => {
           />
         )}
         {activePage === 'archived' && (
-          <ArchivedInterns onRestoreSuccess={fetchPending} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <ArchivedBatches />
+            <ArchivedInterns onRestoreSuccess={fetchPending} />
+          </div>
         )}
       </div>
     </div>
