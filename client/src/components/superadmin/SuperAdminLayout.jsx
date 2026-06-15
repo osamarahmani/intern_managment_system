@@ -573,7 +573,7 @@ const SuperAdminLayout = ({ onLogout }) => {
         flexDirection: 'column'
       }}>
         {activePage === 'dashboard' && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {viewBatch ? (
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
                 <button
@@ -594,9 +594,9 @@ const SuperAdminLayout = ({ onLogout }) => {
                 <ApprovedInterns batchNumber={viewBatch.batch_number} />
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px', alignItems: 'start' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(460px, 1.5fr)', gap: '30px', alignItems: 'start', height: '100%', minHeight: 0 }}>
                 {/* Left Column */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
                   {/* Card 1: Batch Summary Card */}
                   <div style={{
                     background: '#fff',
@@ -1039,7 +1039,7 @@ const SuperAdminLayout = ({ onLogout }) => {
                 </div>
 
                 {/* Right Column: Registered Batches */}
-                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#212121', margin: 0 }}>Registered Batches ({batches.length})</h3>
                     <button
@@ -1079,7 +1079,7 @@ const SuperAdminLayout = ({ onLogout }) => {
                       boxSizing: 'border-box'
                     }}
                   />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
                     {filteredBatches.map((batch) => {
                       const isSelected = summaryBatch && summaryBatch.id === batch.id
                       return (

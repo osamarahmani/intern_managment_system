@@ -790,7 +790,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
           VIEW 1: BATCH OPERATIONS DASHBOARD (DEFAULT VIEW)
           ========================================================================== */}
       {activeView === 'batches' && (
-        <div>
+        <div style={{ height: 'calc(100vh - 104px)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#111111', margin: 0 }}>Batch Management</h2>
             <button
@@ -824,10 +824,10 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(420px, 1.5fr)', gap: '30px', alignItems: 'start', flex: 1, minHeight: 0 }}>
 
             {/* Left Column: Provision New Batch & Batch Summary Card */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
               {/* Create Batch Form Panel */}
               <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
                 <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Provision New Batch</h3>
@@ -1220,13 +1220,13 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
             </div>
 
             {/* Existing Batches List Panel */}
-            <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+            <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Registered Batches ({batches.length})</h3>
 
               {batches.length === 0 ? (
                 <p style={{ color: '#9E9E9E', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No batches provisioned yet.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
                   {batches.map((batch) => {
                     const isSelected = summaryBatch && summaryBatch.id === batch.id;
                     return (
@@ -1376,54 +1376,54 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                         {/* Bottom row — Show Key and archive actions */}
                         <div>
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setVisibleKeyBatchId(
-                                visibleKeyBatchId === batch.id ? null : batch.id
-                              );
-                            }}
-                            style={{
-                              background: 'none',
-                              border: '1px solid #E0E0E0',
-                              borderRadius: '6px',
-                              padding: '5px 12px',
-                              fontSize: '12px',
-                              fontWeight: '500',
-                              color: '#757575',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}
-                          >
-                            <i className="ti ti-eye" style={{ fontSize: '14px' }} />
-                            {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleArchiveBatch(batch);
-                            }}
-                            style={{
-                              background: '#FFF3E0',
-                              border: '1px solid #E65100',
-                              borderRadius: '6px',
-                              padding: '5px 12px',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                              color: '#E65100',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}
-                          >
-                            <i className="ti ti-archive" style={{ fontSize: '14px' }} />
-                            Archive Batch
-                          </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setVisibleKeyBatchId(
+                                  visibleKeyBatchId === batch.id ? null : batch.id
+                                );
+                              }}
+                              style={{
+                                background: 'none',
+                                border: '1px solid #E0E0E0',
+                                borderRadius: '6px',
+                                padding: '5px 12px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                color: '#757575',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}
+                            >
+                              <i className="ti ti-eye" style={{ fontSize: '14px' }} />
+                              {visibleKeyBatchId === batch.id ? 'Hide Key' : 'Show Key'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleArchiveBatch(batch);
+                              }}
+                              style={{
+                                background: '#FFF3E0',
+                                border: '1px solid #E65100',
+                                borderRadius: '6px',
+                                padding: '5px 12px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#E65100',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}
+                            >
+                              <i className="ti ti-archive" style={{ fontSize: '14px' }} />
+                              Archive Batch
+                            </button>
                           </div>
 
                           {/* Key reveal card */}
