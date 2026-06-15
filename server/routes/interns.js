@@ -8,7 +8,7 @@ const router = express.Router()
 router.get('/', verifyToken, async (req, res) => {
   try {
     let interns
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'admin' || req.user.role === 'super_admin') {
       interns = await internQueries.getAllInterns()
     } else {
       const intern = await internQueries.getInternById(req.user.intern_id)
