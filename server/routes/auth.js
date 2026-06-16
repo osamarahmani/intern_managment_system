@@ -243,7 +243,8 @@ router.post('/forgot-password', async (req, res) => {
       console.error('❌ Mailer error - Password reset email failed:', {
         error: mailErr.message,
         code: mailErr.code,
-        email
+        email,
+        tip: mailErr.code === 403 ? 'Verify sender email in SendGrid settings' : 'Check SendGrid API key'
       })
     }
     

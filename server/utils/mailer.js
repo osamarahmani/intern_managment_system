@@ -59,7 +59,14 @@ const sendAdminCredentials = async (email, name, password) => {
     console.log(`✅ Admin credentials email sent to ${email}`, { messageId: response[0].headers['x-message-id'] })
     return response
   } catch (error) {
-    console.error(`❌ Failed to send admin credentials email to ${email}:`, error.message)
+    if (error.code === 403) {
+      console.error(`❌ SendGrid Error 403 (Forbidden) - Sender email not verified`)
+      console.error(`   From: ${SENDGRID_FROM_EMAIL}`)
+      console.error(`   Fix: Verify sender in SendGrid → Settings → Sender Authentication`)
+      console.error(`   https://app.sendgrid.com/settings/sender_auth`)
+    } else {
+      console.error(`❌ Failed to send admin credentials email to ${email}:`, error.message)
+    }
     throw error
   }
 }
@@ -111,7 +118,14 @@ const sendPasswordReset = async (email, resetLink) => {
     console.log(`✅ Password reset email sent to ${email}`, { messageId: response[0].headers['x-message-id'] })
     return response
   } catch (error) {
-    console.error(`❌ Failed to send password reset email to ${email}:`, error.message)
+    if (error.code === 403) {
+      console.error(`❌ SendGrid Error 403 (Forbidden) - Sender email not verified`)
+      console.error(`   From: ${SENDGRID_FROM_EMAIL}`)
+      console.error(`   Fix: Verify sender in SendGrid → Settings → Sender Authentication`)
+      console.error(`   https://app.sendgrid.com/settings/sender_auth`)
+    } else {
+      console.error(`❌ Failed to send password reset email to ${email}:`, error.message)
+    }
     throw error
   }
 }
