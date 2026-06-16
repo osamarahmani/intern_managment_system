@@ -1,25 +1,53 @@
 const nodemailer = require('nodemailer')
 
+// Check if required environment variables are set
+const GMAIL_USER = process.env.GMAIL_USER
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD
+
+if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+  console.error('❌ EMAIL CONFIG ERROR: Missing GMAIL_USER or GMAIL_APP_PASSWORD environment variables')
+  console.error('   GMAIL_USER:', GMAIL_USER ? '✓ set' : '✗ NOT SET')
+  console.error('   GMAIL_APP_PASSWORD:', GMAIL_APP_PASSWORD ? '✓ set' : '✗ NOT SET')
+}
+
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false,
   requireTLS: true,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 15000,
   auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD
-  }
+    user: GMAIL_USER,
+    pass: GMAIL_APP_PASSWORD
+  },
+  logger: true,
+  debug: process.env.MAIL_DEBUG === 'true'
 })
 
+// Verify connection with detailed error logging
 transporter.verify((error, success) => {
   if (error) {
-    console.error('MAIL CONFIG ERROR:', error)
+    console.error('❌ MAIL CONFIG ERROR - Could not connect to Gmail SMTP:')
+    console.error('   Error:', error.message)
+    if (error.code === 'EAUTH') {
+      console.error('   ⚠️  Authentication failed. Check GMAIL_USER and GMAIL_APP_PASSWORD')
+      console.error('   📝 Note: Use Gmail App Password, not your regular password')
+    } else if (error.code === 'ETIMEDOUT' || error.code === 'EHOSTUNREACH') {
+      console.error('   ⚠️  Network/connection error. Check firewall and network settings')
+    }
+    console.error('   Code:', error.code)
   } else {
-    console.log('MAIL SERVER READY')
+    console.log('✅ MAIL SERVER READY - Connected to Gmail SMTP')
   }
 })
 
 const sendAdminCredentials = async (email, name, password) => {
+  if (!GMAIL_USER) {
+    throw new Error('GMAIL_USER environment variable is not set')
+  }
+
   const htmlContent = `
     <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9fafb; padding: 40px 20px; color: #333333;">
       <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
@@ -41,15 +69,26 @@ const sendAdminCredentials = async (email, name, password) => {
     </div>
   `;
 
-  await transporter.sendMail({
-    from: `"Intern Management System" <${process.env.GMAIL_USER}>`,
-    to: email,
-    subject: 'Welcome! Your Admin Account Credentials',
-    html: htmlContent
-  });
+  try {
+    const info = await transporter.sendMail({
+      from: `"Intern Management System" <${GMAIL_USER}>`,
+      to: email,
+      subject: 'Welcome! Your Admin Account Credentials',
+      html: htmlContent
+    })
+    console.log(`✅ Admin credentials email sent to ${email}`, { messageId: info.messageId })
+    return info
+  } catch (error) {
+    console.error(`❌ Failed to send admin credentials email to ${email}:`, error.message)
+    throw error
+  }
 };
 
 const sendPasswordReset = async (email, resetLink) => {
+  if (!GMAIL_USER) {
+    throw new Error('GMAIL_USER environment variable is not set')
+  }
+
   const htmlContent = `
     <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9fafb; padding: 40px 20px; color: #333333;">
       <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
@@ -77,12 +116,19 @@ const sendPasswordReset = async (email, resetLink) => {
     </div>
   `;
 
-  await transporter.sendMail({
-    from: `"Intern Management System" <${process.env.GMAIL_USER}>`,
-    to: email,
-    subject: 'Action Required: Password Reset Request',
-    html: htmlContent
-  });
+  try {
+    const info = await transporter.sendMail({
+      from: `"Intern Management System" <${GMAIL_USER}>`,
+      to: email,
+      subject: 'Action Required: Password Reset Request',
+      html: htmlContent
+    })
+    console.log(`✅ Password reset email sent to ${email}`, { messageId: info.messageId })
+    return info
+  } catch (error) {
+    console.error(`❌ Failed to send password reset email to ${email}:`, error.message)
+    throw error
+  }
 };
 
 module.exports = { sendAdminCredentials, sendPasswordReset }

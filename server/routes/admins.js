@@ -39,7 +39,10 @@ router.post('/', verifyToken, verifySuperAdmin, async (req, res) => {
     res.status(201).json(newAdmin)
     // Send email in background
     sendAdminCredentials(email, name, password).catch((mailErr) => {
-      console.error(`[MAIL FAILED] Could not send credentials to ${email}:`, mailErr.message)
+      console.error(`❌ [MAIL FAILED] Could not send credentials to ${email}:`, {
+        error: mailErr.message,
+        code: mailErr.code
+      })
       // Admin is still created — super admin can manually resend or inform the admin
     })
   } catch (err) {
