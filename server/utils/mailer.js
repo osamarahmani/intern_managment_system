@@ -1,57 +1,30 @@
-const nodemailer = require('nodemailer')
+const sgMail = require('@sendgrid/mail')
 
 // Check if required environment variables are set
-const GMAIL_USER = process.env.GMAIL_USER
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY
+const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.GMAIL_USER
 
-if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-  console.error('❌ EMAIL CONFIG ERROR: Missing GMAIL_USER or GMAIL_APP_PASSWORD environment variables')
-  console.error('   GMAIL_USER:', GMAIL_USER ? '✓ set' : '✗ NOT SET')
-  console.error('   GMAIL_APP_PASSWORD:', GMAIL_APP_PASSWORD ? '✓ set' : '✗ NOT SET')
+if (!SENDGRID_API_KEY) {
+  console.error('❌ EMAIL CONFIG ERROR: Missing SENDGRID_API_KEY environment variable')
+  console.error('   Get it from: https://app.sendgrid.com/settings/api_keys')
 }
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  connectionTimeout: 20000,
-  greetingTimeout: 20000,
-  socketTimeout: 20000,
-  family: 4, // Force IPv4 only (disable IPv6)
-  tls: {
-    rejectUnauthorized: true
-  },
-  auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_APP_PASSWORD
-  },
-  logger: true,
-  debug: process.env.MAIL_DEBUG === 'true'
-})
+if (!SENDGRID_FROM_EMAIL) {
+  console.error('❌ EMAIL CONFIG ERROR: Missing SENDGRID_FROM_EMAIL or GMAIL_USER environment variable')
+}
 
-// Verify connection with detailed error logging
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ MAIL CONFIG ERROR - Could not connect to Gmail SMTP:')
-    console.error('   Error:', error.message)
-    if (error.code === 'EAUTH') {
-      console.error('   ⚠️  Authentication failed. Check GMAIL_USER and GMAIL_APP_PASSWORD')
-      console.error('   📝 Note: Use Gmail App Password, not your regular password')
-    } else if (error.code === 'ETIMEDOUT' || error.code === 'EHOSTUNREACH') {
-      console.error('   ⚠️  Network/connection timeout. Firewall may be blocking SMTP.')
-    } else if (error.code === 'ENETUNREACH' || error.code === 'ESOCKET') {
-      console.error('   ⚠️  Network unreachable on Render.')
-      console.error('   💡 Render may block outbound SMTP. Consider using SendGrid/Mailgun.')
-    }
-    console.error('   Code:', error.code)
-  } else {
-    console.log('✅ MAIL SERVER READY - Connected to Gmail SMTP')
-  }
-})
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY)
+  console.log('✅ MAIL SERVER READY - SendGrid configured')
+}
 
 const sendAdminCredentials = async (email, name, password) => {
-  if (!GMAIL_USER) {
-    throw new Error('GMAIL_USER environment variable is not set')
+  if (!SENDGRID_API_KEY) {
+    throw new Error('SENDGRID_API_KEY environment variable is not set')
+  }
+
+  if (!SENDGRID_FROM_EMAIL) {
+    throw new Error('SENDGRID_FROM_EMAIL environment variable is not set')
   }
 
   const htmlContent = `
@@ -73,26 +46,31 @@ const sendAdminCredentials = async (email, name, password) => {
         </div>
       </div>
     </div>
-  `;
+  `
 
   try {
-    const info = await transporter.sendMail({
-      from: `"Intern Management System" <${GMAIL_USER}>`,
+    const msg = {
       to: email,
+      from: SENDGRID_FROM_EMAIL,
       subject: 'Welcome! Your Admin Account Credentials',
       html: htmlContent
-    })
-    console.log(`✅ Admin credentials email sent to ${email}`, { messageId: info.messageId })
-    return info
+    }
+    const response = await sgMail.send(msg)
+    console.log(`✅ Admin credentials email sent to ${email}`, { messageId: response[0].headers['x-message-id'] })
+    return response
   } catch (error) {
     console.error(`❌ Failed to send admin credentials email to ${email}:`, error.message)
     throw error
   }
-};
+}
 
 const sendPasswordReset = async (email, resetLink) => {
-  if (!GMAIL_USER) {
-    throw new Error('GMAIL_USER environment variable is not set')
+  if (!SENDGRID_API_KEY) {
+    throw new Error('SENDGRID_API_KEY environment variable is not set')
+  }
+
+  if (!SENDGRID_FROM_EMAIL) {
+    throw new Error('SENDGRID_FROM_EMAIL environment variable is not set')
   }
 
   const htmlContent = `
@@ -120,21 +98,22 @@ const sendPasswordReset = async (email, resetLink) => {
         </div>
       </div>
     </div>
-  `;
+  `
 
   try {
-    const info = await transporter.sendMail({
-      from: `"Intern Management System" <${GMAIL_USER}>`,
+    const msg = {
       to: email,
+      from: SENDGRID_FROM_EMAIL,
       subject: 'Action Required: Password Reset Request',
       html: htmlContent
-    })
-    console.log(`✅ Password reset email sent to ${email}`, { messageId: info.messageId })
-    return info
+    }
+    const response = await sgMail.send(msg)
+    console.log(`✅ Password reset email sent to ${email}`, { messageId: response[0].headers['x-message-id'] })
+    return response
   } catch (error) {
     console.error(`❌ Failed to send password reset email to ${email}:`, error.message)
     throw error
   }
-};
+}
 
 module.exports = { sendAdminCredentials, sendPasswordReset }
