@@ -13,10 +13,14 @@ if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
-  secure: true, // Use SSL instead of TLS (port 587) for better Render compatibility
+  secure: true,
   connectionTimeout: 20000,
   greetingTimeout: 20000,
   socketTimeout: 20000,
+  family: 4, // Force IPv4 only (disable IPv6)
+  tls: {
+    rejectUnauthorized: true
+  },
   auth: {
     user: GMAIL_USER,
     pass: GMAIL_APP_PASSWORD
@@ -34,7 +38,10 @@ transporter.verify((error, success) => {
       console.error('   ⚠️  Authentication failed. Check GMAIL_USER and GMAIL_APP_PASSWORD')
       console.error('   📝 Note: Use Gmail App Password, not your regular password')
     } else if (error.code === 'ETIMEDOUT' || error.code === 'EHOSTUNREACH') {
-      console.error('   ⚠️  Network/connection error. Check firewall and network settings')
+      console.error('   ⚠️  Network/connection timeout. Firewall may be blocking SMTP.')
+    } else if (error.code === 'ENETUNREACH' || error.code === 'ESOCKET') {
+      console.error('   ⚠️  Network unreachable on Render.')
+      console.error('   💡 Render may block outbound SMTP. Consider using SendGrid/Mailgun.')
     }
     console.error('   Code:', error.code)
   } else {
