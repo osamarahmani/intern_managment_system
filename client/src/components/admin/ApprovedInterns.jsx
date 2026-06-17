@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { marked } from 'marked';
 import InternAvatar from '../InternAvatar';
 import * as XLSX from 'xlsx';
 import { formatDate } from '../../utils/formatDate';
@@ -12,7 +13,8 @@ import {
 } from '../../services/internService';
 import { getBatches, createBatch, updateBatch, archiveBatch } from '../../services/batchService';
 import { getProjectByInternId, assignProject } from '../../services/projectService';
-import { getTasksByInternId, assignTask, deleteTask } from '../../services/taskService';
+import { getTasksByInternId, assignTask, deleteTask, updateTask } from '../../services/taskService';
+import { generateTasks } from '../../services/aiService';
 
 const thStyle = {
   padding: '10px 16px',
@@ -93,6 +95,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   const containerRef = useRef(null);
   const dragRef = useRef(null);
   const fileInputRef = useRef(null);
+  const mdFileInputRef = useRef(null);
 
   // Database Record States
   const [batches, setBatches] = useState([]);
@@ -116,6 +119,19 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'project' | 'tasks'
   const [assignWork, setAssignWork] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
+
+  // Feature 1 States
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskDate, setEditTaskDate] = useState('');
+
+  // Feature 2 States
+  const [showProjectForm, setShowProjectForm] = useState(false);
+
+  // Feature 3 States
+  const [aiGeneratedTasks, setAiGeneratedTasks] = useState([]);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [showAiTaskReview, setShowAiTaskReview] = useState(false);
 
   // Details Tab States
   const [editedIntern, setEditedIntern] = useState(null);
@@ -427,6 +443,9 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       // Reset forms
       resetProjectForm();
       resetTaskForm();
+      setShowProjectForm(false);
+      setShowAiTaskReview(false);
+      setAiGeneratedTasks([]);
       setActiveTab('details');
     }
   }, [selectedIntern]);
@@ -549,6 +568,20 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     if (file) {
       await handlePhotoUpload(file);
     }
+  };
+
+  const handleMdFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setProjectDesc(event.target.result);
+    };
+    reader.onerror = () => {
+      alert('Failed to read the markdown file.');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // ==========================================================================
@@ -723,6 +756,8 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       return;
     }
 
+    const wasFirstAssignment = projects.length === 0;
+
     try {
       const data = await assignProject({
         intern_id: selectedIntern.id,
@@ -734,7 +769,30 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
 
       alert('Project assigned/updated successfully!');
       setProjects([data]);
-      resetProjectForm();
+      setShowProjectForm(false);
+      setProjectTitle(data.title || '');
+      setProjectDesc(data.description || '');
+      setProjectGit(data.git_repo_link || '');
+      setProjectLive(data.live_project_link || '');
+
+      if (wasFirstAssignment) {
+        setAiGenerating(true);
+        try {
+          const result = await generateTasks(
+            selectedIntern.starting_date,
+            selectedIntern.ending_date,
+            projectTitle.trim(),
+            projectDesc.trim()
+          );
+          setAiGeneratedTasks(result.tasks.map((t, i) => ({ ...t, _tempId: `temp-${i}`, _confirmed: false })));
+          setShowAiTaskReview(true);
+          setActiveTab('tasks');
+        } catch (err) {
+          alert('AI task generation failed: ' + err.message);
+        } finally {
+          setAiGenerating(false);
+        }
+      }
     } catch (err) {
       alert(`Project assignment failed: ${err.message}`);
     }
@@ -776,6 +834,34 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       alert(`Failed to delete task: ${err.message}`);
     }
   };
+
+  const handleSaveTaskEdit = async (taskId) => {
+    try {
+      await updateTask(taskId, {
+        title: editTaskTitle,
+        expected_date: editTaskDate
+      })
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, title: editTaskTitle, expected_date: editTaskDate } : t))
+      setEditingTaskId(null)
+    } catch (err) {
+      alert('Failed to update task: ' + err.message)
+    }
+  }
+
+  const handleConfirmAiTask = async (aiTask) => {
+    try {
+      const data = await assignTask({
+        intern_id: selectedIntern.id,
+        title: aiTask.title,
+        expected_date: aiTask.expected_date,
+        upcoming_task: false
+      })
+      setTasks(prev => [...prev, data])
+      setAiGeneratedTasks(prev => prev.map(t => t._tempId === aiTask._tempId ? { ...t, _confirmed: true } : t))
+    } catch (err) {
+      alert('Failed to assign task: ' + err.message)
+    }
+  }
 
 
 
@@ -1968,99 +2054,250 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                           <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Project Details</h3>
 
                           {/* Show Assigned Project */}
-                          {projects.length > 0 ? (
-                            <div style={{ background: '#FAFAFA', padding: '16px', border: '1px solid #EEEEEE', borderRadius: '8px', marginBottom: '10px' }}>
-                              <h4 style={{ fontSize: '14.5px', fontWeight: '700', color: '#3D35C4', margin: '0 0 8px 0' }}>{projects[0].title}</h4>
-                              <p style={{ fontSize: '13px', color: '#555555', margin: '0 0 14px 0', lineHeight: '1.5' }}>{projects[0].description}</p>
-                              <div style={{ display: 'flex', gap: '16px', fontSize: '12.5px' }}>
+                          {projects.length > 0 && !showProjectForm ? (
+                            <div style={{ background: '#FAFAFA', padding: '16px', border: '1px solid #EEEEEE', borderRadius: '8px', marginBottom: '10px', position: 'relative' }}>
+                              <button
+                                type="button"
+                                onClick={() => setShowProjectForm(prev => !prev)}
+                                style={{ position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#3D35C4', fontSize: '16px', padding: '4px' }}
+                                title="Edit Project"
+                              >
+                                <i className="ti ti-pencil" />
+                              </button>
+                              <h4 style={{ fontSize: '14.5px', fontWeight: '700', color: '#3D35C4', margin: '0 24px 8px 0' }}>{projects[0].title}</h4>
+                              <div
+                                style={{ fontSize: '13px', color: '#555555', margin: '0 0 14px 0', lineHeight: '1.6' }}
+                                className="markdown-preview"
+                                dangerouslySetInnerHTML={{ __html: marked.parse(projects[0].description || '') }}
+                              />
+                              <div style={{ display: 'flex', gap: '10px', marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #EEEEEE' }}>
                                 {projects[0].git_repo_link && (
-                                  <a href={projects[0].git_repo_link} target="_blank" rel="noreferrer" style={{ color: '#3D35C4', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <i className="ti ti-brand-github" /> Git Repo
+                                  <a
+                                    href={projects[0].git_repo_link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                      color: '#212121',
+                                      background: '#F5F5F5',
+                                      border: '1px solid #E0E0E0',
+                                      borderRadius: '8px',
+                                      padding: '8px 16px',
+                                      fontSize: '13px',
+                                      fontWeight: '600',
+                                      textDecoration: 'none',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#EEEEEE'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                                  >
+                                    <i className="ti ti-brand-github" style={{ fontSize: '16px' }} /> Git Repo
                                   </a>
                                 )}
                                 {projects[0].live_project_link && (
-                                  <a href={projects[0].live_project_link} target="_blank" rel="noreferrer" style={{ color: '#018786', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <i className="ti ti-external-link" /> Live Project
+                                  <a
+                                    href={projects[0].live_project_link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                      color: '#FFFFFF',
+                                      background: '#018786',
+                                      border: 'none',
+                                      borderRadius: '8px',
+                                      padding: '8px 16px',
+                                      fontSize: '13px',
+                                      fontWeight: '600',
+                                      textDecoration: 'none',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#016b6b'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = '#018786'}
+                                  >
+                                    <i className="ti ti-external-link" style={{ fontSize: '16px' }} /> Live Project
                                   </a>
                                 )}
                               </div>
                             </div>
-                          ) : (
+                          ) : projects.length === 0 ? (
                             <p style={{ color: '#9E9E9E', fontSize: '13px', margin: '0 0 10px 0' }}>No project assigned yet. Use the form below to assign one.</p>
-                          )}
+                          ) : null}
                         </div>
 
                         {/* Project Assignment Form */}
-                        <form onSubmit={handleAssignProject} style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #EEEEEE', paddingTop: '20px' }}>
-                          <h4 style={{ fontSize: '13px', fontWeight: '600', color: '#757575', margin: '0 0 4px 0' }}>
-                            {projects.length > 0 ? 'Update Project Specification' : 'Assign New Project'}
-                          </h4>
+                        {(projects.length === 0 || showProjectForm) && (
+                          <form onSubmit={handleAssignProject} style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #EEEEEE', paddingTop: '20px' }}>
+                            <h4 style={{ fontSize: '13px', fontWeight: '600', color: '#757575', margin: '0 0 4px 0' }}>
+                              {projects.length > 0 ? 'Update Project Specification' : 'Assign New Project'}
+                            </h4>
 
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Project Title</label>
-                            <input
-                              type="text"
-                              placeholder="Project Title"
-                              value={projectTitle}
-                              onChange={(e) => setProjectTitle(e.target.value)}
-                              required
-                              style={{ height: '38px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
-                            />
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Project Description</label>
-                            <textarea
-                              placeholder="Project Description"
-                              value={projectDesc}
-                              onChange={(e) => setProjectDesc(e.target.value)}
-                              required
-                              rows={3}
-                              style={{ padding: '10px 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                            />
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Git Repository URL</label>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                              <i className="ti ti-brand-github" style={{ position: 'absolute', left: '12px', color: '#757575', fontSize: '16px' }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Project Title</label>
                               <input
-                                type="url"
-                                placeholder="https://github.com/username/repo"
-                                value={projectGit}
-                                onChange={(e) => setProjectGit(e.target.value)}
-                                style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                                type="text"
+                                placeholder="Project Title"
+                                value={projectTitle}
+                                onChange={(e) => setProjectTitle(e.target.value)}
+                                required
+                                style={{ height: '38px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
                               />
                             </div>
-                          </div>
 
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Live Deploy URL</label>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                              <i className="ti ti-external-link" style={{ position: 'absolute', left: '12px', color: '#757575', fontSize: '16px' }} />
-                              <input
-                                type="url"
-                                placeholder="https://example.com"
-                                value={projectLive}
-                                onChange={(e) => setProjectLive(e.target.value)}
-                                style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Project Description (Markdown supported)</label>
+                                <button
+                                  type="button"
+                                  onClick={() => mdFileInputRef.current && mdFileInputRef.current.click()}
+                                  style={{ background: 'none', border: '1px solid #E0E0E0', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', color: '#3D35C4', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                >
+                                  <i className="ti ti-upload" style={{ fontSize: '14px' }} />
+                                  Upload .md File
+                                </button>
+                                <input
+                                  type="file"
+                                  ref={mdFileInputRef}
+                                  accept=".md,.markdown,text/markdown,text/plain"
+                                  style={{ display: 'none' }}
+                                  onChange={handleMdFileUpload}
+                                />
+                              </div>
+                              <textarea
+                                placeholder="Project Description — supports markdown: # headings, **bold**, - lists, etc."
+                                value={projectDesc}
+                                onChange={(e) => setProjectDesc(e.target.value)}
+                                required
+                                rows={6}
+                                style={{ padding: '10px 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
                               />
                             </div>
-                          </div>
 
-                          <button
-                            type="submit"
-                            style={{ height: '38px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', alignSelf: 'flex-start', padding: '0 24px', marginTop: '4px' }}
-                          >
-                            {projects.length > 0 ? 'Update Project Details' : 'Assign Project'}
-                          </button>
-                        </form>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Git Repository URL</label>
+                              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <i className="ti ti-brand-github" style={{ position: 'absolute', left: '12px', color: '#757575', fontSize: '16px' }} />
+                                <input
+                                  type="url"
+                                  placeholder="https://github.com/username/repo"
+                                  value={projectGit}
+                                  onChange={(e) => setProjectGit(e.target.value)}
+                                  style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                                />
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Live Deploy URL</label>
+                              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <i className="ti ti-external-link" style={{ position: 'absolute', left: '12px', color: '#757575', fontSize: '16px' }} />
+                                <input
+                                  type="url"
+                                  placeholder="https://example.com"
+                                  value={projectLive}
+                                  onChange={(e) => setProjectLive(e.target.value)}
+                                  style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                                />
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                              <button
+                                type="submit"
+                                style={{ height: '38px', background: '#3D35C4', color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', padding: '0 24px' }}
+                              >
+                                {projects.length > 0 ? 'Update Project Details' : 'Assign Project'}
+                              </button>
+                              {projects.length > 0 && showProjectForm && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowProjectForm(false)}
+                                  style={{ height: '38px', background: '#FFFFFF', color: '#757575', border: '1px solid #E0E0E0', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', padding: '0 24px' }}
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          </form>
+                        )}
                       </div>
                     )}
 
                     {/* Tab Contents: Tasks */}
                     {activeTab === 'tasks' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid #E0E0E0', borderRadius: '8px', overflow: 'hidden' }}>
+
+                        {aiGenerating && (
+                          <div style={{ padding: '14px 20px', background: '#F8F7FF', borderBottom: '1px solid #3D35C4', color: '#3D35C4', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <i className="ti ti-loader" style={{ fontSize: '18px' }} />
+                            <span>Generating task plan based on internship duration...</span>
+                          </div>
+                        )}
+
+                        {showAiTaskReview && aiGeneratedTasks.length > 0 && (
+                          <div style={{ border: '2px solid #3D35C4', borderRadius: '8px', overflow: 'hidden', margin: '20px 20px 0 20px' }}>
+                            <div style={{ ...sectionHeading, background: '#F8F7FF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>AI-Generated Task Plan — Review & Confirm Each Task</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowAiTaskReview(false)}
+                                style={{ background: 'none', border: 'none', color: '#9E9E9E', cursor: 'pointer', fontSize: '12px' }}
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: '#F5F5F5' }}>
+                                  <th style={thStyle}>Task</th>
+                                  <th style={thStyle}>Date</th>
+                                  <th style={thStyle}>Confirm</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {aiGeneratedTasks.map((t) => (
+                                  <tr key={t._tempId} style={{ background: t._confirmed ? '#E8F5E9' : '#FFFFFF' }}>
+                                    <td style={tdStyle}>
+                                      <input
+                                        type="text"
+                                        value={t.title}
+                                        disabled={t._confirmed}
+                                        onChange={(e) => setAiGeneratedTasks(prev => prev.map(x => x._tempId === t._tempId ? { ...x, title: e.target.value } : x))}
+                                        style={{ width: '100%', border: '1px solid #E0E0E0', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }}
+                                      />
+                                    </td>
+                                    <td style={tdStyle}>
+                                      <input
+                                        type="date"
+                                        value={t.expected_date}
+                                        disabled={t._confirmed}
+                                        onChange={(e) => setAiGeneratedTasks(prev => prev.map(x => x._tempId === t._tempId ? { ...x, expected_date: e.target.value } : x))}
+                                        style={{ border: '1px solid #E0E0E0', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }}
+                                      />
+                                    </td>
+                                    <td style={tdStyle}>
+                                      {t._confirmed ? (
+                                        <span style={{ color: '#2E7D32', fontSize: '12px', fontWeight: '700' }}>✓ Assigned</span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleConfirmAiTask(t)}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                          title="Confirm and assign this task"
+                                        >
+                                          <i className="ti ti-check" style={{ color: '#3D35C4', fontSize: '20px' }} />
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
 
                         {/* Section 1: Current Assigned Work */}
                         <div>
@@ -2074,6 +2311,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                   <th style={thStyle}>Task</th>
                                   <th style={thStyle}>Expected Date</th>
                                   <th style={thStyle}>Status</th>
+                                  <th style={thStyle}>Action</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2081,15 +2319,84 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                   const currentTask = tasks.find(t => t.status !== 'completed');
                                   return currentTask ? (
                                     <tr style={{ background: '#EEF4FF' }}>
-                                      <td style={tdStyle}>{currentTask.title}</td>
-                                      <td style={tdStyle}>{formatDate(currentTask.expected_date)}</td>
-                                      <td style={tdStyle}>
-                                        <span style={inProgressBadge}>In Progress</span>
-                                      </td>
+                                      {editingTaskId === currentTask.id ? (
+                                        <>
+                                          <td style={tdStyle}>
+                                            <input
+                                              type="text"
+                                              value={editTaskTitle}
+                                              onChange={(e) => setEditTaskTitle(e.target.value)}
+                                              style={{ width: '100%', border: '1px solid #E0E0E0', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }}
+                                            />
+                                          </td>
+                                          <td style={tdStyle}>
+                                            <input
+                                              type="date"
+                                              value={editTaskDate}
+                                              onChange={(e) => setEditTaskDate(e.target.value)}
+                                              style={{ border: '1px solid #E0E0E0', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }}
+                                            />
+                                          </td>
+                                          <td style={tdStyle}>
+                                            <span style={inProgressBadge}>In Progress</span>
+                                          </td>
+                                          <td style={tdStyle}>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSaveTaskEdit(currentTask.id)}
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', marginRight: '8px' }}
+                                              title="Save"
+                                            >
+                                              <i className="ti ti-check" style={{ color: '#2E7D32', fontSize: '18px' }} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setEditingTaskId(null)}
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                              title="Cancel"
+                                            >
+                                              <i className="ti ti-x" style={{ color: '#B00020', fontSize: '18px' }} />
+                                            </button>
+                                          </td>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <td style={tdStyle}>{currentTask.title}</td>
+                                          <td style={tdStyle}>{formatDate(currentTask.expected_date)}</td>
+                                          <td style={tdStyle}>
+                                            <span style={inProgressBadge}>In Progress</span>
+                                          </td>
+                                          <td style={tdStyle}>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setEditingTaskId(currentTask.id);
+                                                setEditTaskTitle(currentTask.title || '');
+                                                setEditTaskDate(formatDateForInput(currentTask.expected_date));
+                                              }}
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', marginRight: '8px' }}
+                                              title="Edit Task"
+                                            >
+                                              <i className="ti ti-pencil" style={{ color: '#3D35C4', fontSize: '18px' }} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteTask(currentTask.id);
+                                              }}
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                              title="Delete Task"
+                                            >
+                                              <i className="ti ti-trash" style={{ color: '#B00020', fontSize: '18px' }} />
+                                            </button>
+                                          </td>
+                                        </>
+                                      )}
                                     </tr>
                                   ) : (
                                     <tr>
-                                      <td colSpan={3} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
+                                      <td colSpan={4} style={{ ...tdStyle, color: '#9E9E9E', textAlign: 'center' }}>
                                         No active task in progress.
                                       </td>
                                     </tr>
@@ -2163,21 +2470,74 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                   return upcomingList.length > 0 ? (
                                     upcomingList.map((task, index) => (
                                       <tr key={task.id} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#FFFBF5' }}>
-                                        <td style={tdStyle}>{task.title}</td>
-                                        <td style={tdStyle}>{formatDate(task.expected_date)}</td>
-                                        <td style={tdStyle}>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDeleteTask(task.id);
-                                            }}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                                            title="Delete Task"
-                                          >
-                                            <i className="ti ti-trash" style={{ color: '#B00020', fontSize: '18px' }} />
-                                          </button>
-                                        </td>
+                                        {editingTaskId === task.id ? (
+                                          <>
+                                            <td style={tdStyle}>
+                                              <input
+                                                type="text"
+                                                value={editTaskTitle}
+                                                onChange={(e) => setEditTaskTitle(e.target.value)}
+                                                style={{ width: '100%', border: '1px solid #E0E0E0', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }}
+                                              />
+                                            </td>
+                                            <td style={tdStyle}>
+                                              <input
+                                                type="date"
+                                                value={editTaskDate}
+                                                onChange={(e) => setEditTaskDate(e.target.value)}
+                                                style={{ border: '1px solid #E0E0E0', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }}
+                                              />
+                                            </td>
+                                            <td style={tdStyle}>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleSaveTaskEdit(task.id)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', marginRight: '8px' }}
+                                                title="Save"
+                                              >
+                                                <i className="ti ti-check" style={{ color: '#2E7D32', fontSize: '18px' }} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setEditingTaskId(null)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                                title="Cancel"
+                                              >
+                                                <i className="ti ti-x" style={{ color: '#B00020', fontSize: '18px' }} />
+                                              </button>
+                                            </td>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <td style={tdStyle}>{task.title}</td>
+                                            <td style={tdStyle}>{formatDate(task.expected_date)}</td>
+                                            <td style={tdStyle}>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setEditingTaskId(task.id);
+                                                  setEditTaskTitle(task.title || '');
+                                                  setEditTaskDate(formatDateForInput(task.expected_date));
+                                                }}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', marginRight: '8px' }}
+                                                title="Edit Task"
+                                              >
+                                                <i className="ti ti-pencil" style={{ color: '#3D35C4', fontSize: '18px' }} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleDeleteTask(task.id);
+                                                }}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                                title="Delete Task"
+                                              >
+                                                <i className="ti ti-trash" style={{ color: '#B00020', fontSize: '18px' }} />
+                                              </button>
+                                            </td>
+                                          </>
+                                        )}
                                       </tr>
                                     ))
                                   ) : (

@@ -8,6 +8,7 @@ const batchRoutes = require('./routes/batches')
 const projectRoutes = require('./routes/projects')
 const taskRoutes = require('./routes/tasks')
 const adminRoutes = require('./routes/admins')
+const aiRoutes = require('./routes/ai')
 
 const app = express()
 
@@ -26,6 +27,7 @@ app.use('/api/batches', batchRoutes)
 app.use('/api/projects', projectRoutes)
 app.use('/api/tasks', taskRoutes)
 app.use('/api/admins', adminRoutes)
+app.use('/api/ai', aiRoutes)
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }))
 
