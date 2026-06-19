@@ -2,10 +2,18 @@ const pool = require('../pool')
 
 const getAllBatches = async () => {
   const result = await pool.query(
-    `SELECT b.*, p.name AS mentor_name, p.email AS mentor_email 
+    `SELECT b.*, p.name AS mentor_name, p.email AS mentor_email,
+       COUNT(i.id)::int AS intern_count,
+       COUNT(i.id) FILTER (WHERE COALESCE(i.intern_status, 'active') = 'active')::int AS active_intern_count,
+       COUNT(i.id) FILTER (WHERE i.intern_status = 'completed')::int AS completed_intern_count,
+       COUNT(i.id) FILTER (WHERE i.intern_status = 'discontinued')::int AS discontinued_intern_count,
+       (COUNT(i.id) > 0
+         AND COUNT(i.id) FILTER (WHERE i.intern_status = 'completed') = COUNT(i.id)) AS internship_completed
      FROM batches b
      LEFT JOIN profiles p ON b.created_by = p.id
+     LEFT JOIN interns i ON i.batch_number = b.batch_number AND i.status = 'approved'
      WHERE b.is_archived = false OR b.is_archived IS NULL
+     GROUP BY b.id, p.name, p.email
      ORDER BY b.created_at DESC`
   )
   return result.rows
@@ -13,10 +21,18 @@ const getAllBatches = async () => {
 
 const getBatchesByAdmin = async (profileId) => {
   const result = await pool.query(
-    `SELECT b.*, p.name AS mentor_name, p.email AS mentor_email
+    `SELECT b.*, p.name AS mentor_name, p.email AS mentor_email,
+       COUNT(i.id)::int AS intern_count,
+       COUNT(i.id) FILTER (WHERE COALESCE(i.intern_status, 'active') = 'active')::int AS active_intern_count,
+       COUNT(i.id) FILTER (WHERE i.intern_status = 'completed')::int AS completed_intern_count,
+       COUNT(i.id) FILTER (WHERE i.intern_status = 'discontinued')::int AS discontinued_intern_count,
+       (COUNT(i.id) > 0
+         AND COUNT(i.id) FILTER (WHERE i.intern_status = 'completed') = COUNT(i.id)) AS internship_completed
      FROM batches b
      LEFT JOIN profiles p ON b.created_by = p.id
+     LEFT JOIN interns i ON i.batch_number = b.batch_number AND i.status = 'approved'
      WHERE b.created_by = $1 AND (b.is_archived = false OR b.is_archived IS NULL)
+     GROUP BY b.id, p.name, p.email
      ORDER BY b.created_at DESC`,
     [profileId]
   )

@@ -5,6 +5,7 @@ import { getProjectByInternId } from '../../services/projectService';
 import { getTasksByInternId, updateTask } from '../../services/taskService';
 import './InternLayout.css';
 import InternAvatar from '../InternAvatar';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 
 // We import subpages directly
 import InternProfilePage from './pages/InternProfile';
@@ -35,8 +36,8 @@ const InternLayout = ({ onLogout }) => {
     return () => window.removeEventListener('popstate', handlePop);
   }, []);
 
-  const fetchInternData = async () => {
-    setLoading(true);
+  const fetchInternData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const internId = getInternId();
       if (!internId) throw new Error('No intern ID found in local storage.');
@@ -51,13 +52,16 @@ const InternLayout = ({ onLogout }) => {
     } catch (err) {
       console.error('Error fetching intern data:', err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchInternData();
   }, []);
+
+  // New assignments and admin updates appear without reloading the intern portal.
+  useAutoRefresh(() => fetchInternData(true), 12000);
 
   const handleUpdateTaskStatus = async (taskId, newStatus, submissionDate = null) => {
     try {

@@ -10,6 +10,7 @@ import { getAllAdmins, createAdmin, deleteAdmin } from '../../services/adminServ
 import { getAllInterns, approveIntern, rejectIntern, getInternsByBatch } from '../../services/internService'
 import { getProjectByInternId } from '../../services/projectService'
 import { getTasksByInternId } from '../../services/taskService'
+import useAutoRefresh from '../../hooks/useAutoRefresh'
 
 const SuperAdminLayout = ({ onLogout }) => {
   const [activePage, setActivePage] = useState('dashboard') // 'dashboard' | 'pending' | 'admins' | 'archived'
@@ -86,6 +87,8 @@ const SuperAdminLayout = ({ onLogout }) => {
       const data = await getBatches()
       if (data) {
         setBatches(data)
+        setSummaryBatch(prev => prev ? (data.find(batch => batch.id === prev.id) || prev) : prev)
+        setViewBatch(prev => prev ? (data.find(batch => batch.id === prev.id) || prev) : prev)
         fetchInternStatusCounts()
       }
     } catch (err) {
@@ -128,6 +131,9 @@ const SuperAdminLayout = ({ onLogout }) => {
       console.error('Error fetching pending registrations:', err.message)
     }
   }
+
+  // Synchronize batches, mentors, and approval notifications in the background.
+  useAutoRefresh(() => Promise.all([fetchBatches(), fetchAdmins(), fetchPending()]), 10000)
 
   const handleExportAll = async () => {
     try {
@@ -1123,9 +1129,9 @@ const SuperAdminLayout = ({ onLogout }) => {
                           onClick={() => setSummaryBatch(batch)}
                           style={{
                             padding: isSelected ? '15px 19px' : '16px 20px',
-                            border: isSelected ? '2px solid #3D35C4' : '1px solid #EEEEEE',
+                            border: isSelected ? `2px solid ${batch.internship_completed ? '#2E7D32' : '#3D35C4'}` : `1px solid ${batch.internship_completed ? '#A5D6A7' : '#EEEEEE'}`,
                             borderRadius: '10px',
-                            background: '#FAFAFA',
+                            background: batch.internship_completed ? 'linear-gradient(135deg, #F4FBF5 0%, #E8F5E9 100%)' : '#FAFAFA',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '12px',
@@ -1155,6 +1161,16 @@ const SuperAdminLayout = ({ onLogout }) => {
                             >
                               {batch.batch_number}
                             </span>
+
+                            {batch.internship_completed && (
+                              <span style={{
+                                background: '#2E7D32', color: '#FFFFFF', borderRadius: '12px',
+                                padding: '4px 9px', fontSize: '9px', fontWeight: 800,
+                                letterSpacing: '0.3px', whiteSpace: 'nowrap'
+                              }}>
+                                ✓ INTERNSHIP COMPLETED
+                              </span>
+                            )}
 
                             {/* Active/Inactive Status Toggle */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

@@ -18,6 +18,11 @@ import { getBatches, createBatch, updateBatch, archiveBatch } from '../../servic
 import { getProjectByInternId, assignProject, generateAITasks } from '../../services/projectService';
 import { getTasksByInternId, assignTask, deleteTask, updateTask } from '../../services/taskService';
 import { getSubTasksByTaskId, createSubTask, updateSubTaskStatus, getTaskNotes, saveTaskNote, updateTaskStatus, getAITaskDrafts, assignAITaskDraft, updateAITaskDraft } from '../../services/taskService';
+import RichTextContent from '../RichTextContent';
+import RichTextEditor from '../RichTextEditor';
+import { isRichTextEmpty, sanitizeRichText } from '../../utils/richText';
+import { downloadTaskReportPdf } from '../../utils/taskReportPdf';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 
 const thStyle = {
   padding: '10px 16px',
@@ -121,6 +126,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   // Redesigned Task Form States
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'project' | 'tasks'
   const [assignWork, setAssignWork] = useState('');
+  const [assignDescription, setAssignDescription] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
 
   // Feature 1 States
@@ -183,6 +189,9 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   const [subTaskLists, setSubTaskLists] = useState({})
   const [taskSubTasks, setTaskSubTasks] = useState({})
   const [taskNotes, setTaskNotes] = useState({})
+  const [adminNoteInputs, setAdminNoteInputs] = useState({})
+  const [savingAdminNote, setSavingAdminNote] = useState({})
+  const [exportingReport, setExportingReport] = useState(null)
   const [aiDraftsExist, setAiDraftsExist] = useState(false)
   const [editingDraftId, setEditingDraftId] = useState(null)
   const [editDraftForm, setEditDraftForm] = useState({ title: '', description: '', expected_date: '' })
@@ -453,6 +462,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
 
   const resetTaskForm = () => {
     setAssignWork('');
+    setAssignDescription('');
     setExpectedDate('');
   };
 
@@ -648,6 +658,8 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       const data = await getBatches();
       if (data) {
         setBatches(data);
+        setSummaryBatch(prev => prev ? (data.find(batch => batch.id === prev.id) || prev) : prev);
+        setSelectedBatch(prev => prev ? (data.find(batch => batch.id === prev.id || batch.batch_number === prev.batch_number) || prev) : prev);
         fetchInternStatusCounts();
         if (initialBatchNumber) {
           const matched = data.find(b => b.batch_number === initialBatchNumber);
@@ -668,6 +680,30 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       console.error('Error fetching interns:', err.message);
     }
   };
+
+  // Refresh only the visible management data; forms and navigation remain untouched.
+  useAutoRefresh(async () => {
+    await fetchBatches()
+
+    if (activeView === 'batches' && summaryBatch) {
+      await fetchBatchSummary(summaryBatch.batch_number)
+    }
+
+    if (activeView === 'batchDetails' && selectedBatch) {
+      const latestInterns = await getInternsByBatch(selectedBatch.batch_number)
+      setInterns(latestInterns || [])
+      if (selectedIntern) {
+        const latestSelected = (latestInterns || []).find(intern => intern.id === selectedIntern.id)
+        if (latestSelected) setSelectedIntern(prev => ({ ...prev, ...latestSelected }))
+        const latestTasks = await getTasksByInternId(selectedIntern.id)
+        setTasks(latestTasks || [])
+        if (expandedNotesTaskId) {
+          const notes = await getTaskNotes(expandedNotesTaskId)
+          setTaskNotes(prev => ({ ...prev, [expandedNotesTaskId]: notes || [] }))
+        }
+      }
+    }
+  }, 12000)
 
   const fetchInternDetails = async (internId) => {
     try {
@@ -855,6 +891,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       const data = await assignTask({
         intern_id: selectedIntern.id,
         title: assignWork.trim(),
+        description: sanitizeRichText(assignDescription),
         expected_date: expectedDate,
         upcoming_task: false
       });
@@ -881,6 +918,46 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       alert(`Failed to delete task: ${err.message}`);
     }
   };
+
+  const handleExportSingleTask = async task => {
+    setExportingReport(task.id)
+    try {
+      const [notes, subtasks] = await Promise.all([getTaskNotes(task.id), getSubTasksByTaskId(task.id)])
+      setTaskNotes(prev => ({ ...prev, [task.id]: notes || [] }))
+      setTaskSubTasks(prev => ({ ...prev, [task.id]: subtasks || [] }))
+      downloadTaskReportPdf({
+        internName: selectedIntern?.name || 'Intern',
+        tasks: [{ ...task, notes: notes || [], subtasks: subtasks || [] }]
+      })
+    } catch (err) {
+      alert('Failed to export task report: ' + err.message)
+    } finally {
+      setExportingReport(null)
+    }
+  }
+
+  const handleExportAllTasks = async () => {
+    if (!tasks.length) return
+    setExportingReport('all')
+    try {
+      const reportData = await Promise.all(tasks.map(task => Promise.all([getTaskNotes(task.id), getSubTasksByTaskId(task.id)])))
+      const reportTasks = tasks.map((task, index) => ({
+        ...task,
+        notes: reportData[index][0] || [],
+        subtasks: reportData[index][1] || []
+      }))
+      setTaskNotes(prev => ({ ...prev, ...Object.fromEntries(reportTasks.map(task => [task.id, task.notes])) }))
+      downloadTaskReportPdf({
+        internName: selectedIntern?.name || 'Intern',
+        tasks: reportTasks,
+        consolidated: true
+      })
+    } catch (err) {
+      alert('Failed to export consolidated report: ' + err.message)
+    } finally {
+      setExportingReport(null)
+    }
+  }
 
   const handleSaveTaskEdit = async (taskId) => {
     try {
@@ -944,6 +1021,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
         feedback_rating: updatedRating,
         feedback_text: updatedFeedback
       } : i))
+      await fetchBatches()
     } catch (err) {
       alert('Failed: ' + err.message)
     } finally {
@@ -966,6 +1044,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       alert('Intern marked as discontinued.')
       setSelectedIntern(prev => ({ ...prev, intern_status: 'discontinued', discontinued_reason: reason, login_blocked: true }))
       setInterns(prev => prev.map(i => i.id === selectedIntern.id ? { ...i, intern_status: 'discontinued', discontinued_reason: reason, login_blocked: true } : i))
+      await fetchBatches()
     } catch (err) {
       alert('Failed: ' + err.message)
     } finally {
@@ -1193,6 +1272,11 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                   marginTop: 0
                 }}>
                   📊 Batch Summary — {summaryBatch ? summaryBatch.batch_number : 'None'}
+                  {summaryBatch?.internship_completed && (
+                    <span style={{ marginLeft: '10px', background: '#E8F5E9', color: '#1B5E20', border: '1px solid #81C784', borderRadius: '12px', padding: '3px 9px', fontSize: '10px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                      ✓ INTERNSHIP COMPLETED
+                    </span>
+                  )}
                 </h3>
 
                 {summaryLoading ? (
@@ -1485,15 +1569,16 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
                   {batches.map((batch) => {
                     const isSelected = summaryBatch && summaryBatch.id === batch.id;
+                    const isCompleted = batch.internship_completed === true;
                     return (
                       <div
                         key={batch.id}
                         onClick={() => setSummaryBatch(batch)}
                         style={{
                           padding: isSelected ? '15px 19px' : '16px 20px',
-                          border: isSelected ? '2px solid #3D35C4' : '1px solid #EEEEEE',
+                          border: isSelected ? `2px solid ${isCompleted ? '#2E7D32' : '#3D35C4'}` : `1px solid ${isCompleted ? '#A5D6A7' : '#EEEEEE'}`,
                           borderRadius: '10px',
-                          background: '#FAFAFA',
+                          background: isCompleted ? 'linear-gradient(135deg, #F4FBF5 0%, #E8F5E9 100%)' : '#FAFAFA',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '12px',
@@ -1524,6 +1609,16 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                           >
                             {batch.batch_number}
                           </span>
+
+                          {isCompleted && (
+                            <span title={`${batch.completed_intern_count} completed, ${batch.discontinued_intern_count} discontinued`} style={{
+                              background: '#2E7D32', color: '#FFFFFF', borderRadius: '12px',
+                              padding: '4px 10px', fontSize: '10px', fontWeight: 800,
+                              letterSpacing: '0.35px', whiteSpace: 'nowrap', flexShrink: 0
+                            }}>
+                              ✓ INTERNSHIP COMPLETED
+                            </span>
+                          )}
 
                           {/* Toggle + label */}
                           <div style={{
@@ -1776,7 +1871,14 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#111111', margin: 0 }}>Intern Management</h2>
-              <p style={{ fontSize: '14px', color: '#757575', margin: 0 }}>Batch: <strong>{selectedBatch.batch_number}</strong></p>
+              <p style={{ fontSize: '14px', color: '#757575', margin: 0 }}>
+                Batch: <strong>{selectedBatch.batch_number}</strong>
+                {selectedBatch.internship_completed && (
+                  <span style={{ marginLeft: '10px', background: '#E8F5E9', color: '#1B5E20', border: '1px solid #81C784', borderRadius: '12px', padding: '3px 9px', fontSize: '10px', fontWeight: 800 }}>
+                    ✓ INTERNSHIP COMPLETED
+                  </span>
+                )}
+              </p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2513,6 +2615,19 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                             <div style={{ display: 'flex', alignItems: 'center' }}>
                               <button
                                 type="button"
+                                onClick={handleExportAllTasks}
+                                disabled={!tasks.length || exportingReport !== null}
+                                style={{
+                                  marginRight: '10px', background: '#FFFFFF', color: '#3D35C4',
+                                  border: '1px solid #3D35C4', borderRadius: '8px', padding: '9px 16px',
+                                  fontSize: '12px', fontWeight: 700, cursor: tasks.length ? 'pointer' : 'not-allowed',
+                                  opacity: !tasks.length || exportingReport !== null ? 0.55 : 1
+                                }}
+                              >
+                                {exportingReport === 'all' ? 'Preparing PDF…' : '⇩ Export All Notes PDF'}
+                              </button>
+                              <button
+                                type="button"
                                 onClick={openGenerateTasksModal}
                                 disabled={aiLoading || !projects.length}
                                 style={{
@@ -2674,6 +2789,21 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                           {task.status.replace('_', ' ')}
                                         </span>
 
+                                        <button
+                                          type="button"
+                                          title="Export this task as a PDF report"
+                                          disabled={exportingReport !== null}
+                                          onClick={event => { event.stopPropagation(); handleExportSingleTask(task) }}
+                                          style={{
+                                            height: '28px', padding: '0 9px', borderRadius: '5px',
+                                            border: '1px solid #D8D5ED', background: '#fff', color: '#3D35C4',
+                                            fontSize: '10px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                                            opacity: exportingReport !== null ? 0.55 : 1
+                                          }}
+                                        >
+                                          {exportingReport === task.id ? 'Preparing…' : '⇩ PDF'}
+                                        </button>
+
                                         {/* Expand Arrow */}
                                         <span style={{
                                           fontSize: '18px', color: '#9E9E9E', flexShrink: 0,
@@ -2692,7 +2822,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                           {task.description && (
                                             <div>
                                               <p style={{ margin: '0 0 6px 0', fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</p>
-                                              <p style={{ margin: 0, fontSize: '13px', color: '#555', lineHeight: 1.7 }}>{task.description}</p>
+                                              <RichTextContent value={task.description} />
                                             </div>
                                           )}
 
@@ -2858,7 +2988,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                               }}
                                             >
                                               <span style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                                📝 Intern Notes
+                                                📝 Task Notes
                                               </span>
                                               <span style={{
                                                 fontSize: '16px', color: '#9E9E9E',
@@ -2874,10 +3004,46 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                                   notes.map((n, i) => (
                                                     <div key={i} style={{ marginBottom: '10px', padding: '10px', background: '#FFFDE7', borderRadius: '6px', border: '1px solid #FFF9C4' }}>
                                                       <p style={{ margin: '0 0 4px 0', fontSize: '12px', fontWeight: 600, color: '#3D35C4' }}>{n.intern_name}</p>
-                                                      <p style={{ margin: 0, fontSize: '13px', color: '#444', lineHeight: 1.6 }}>{n.note}</p>
+                                                      <RichTextContent value={n.note} />
                                                     </div>
                                                   ))
                                                 )}
+                                                <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                                                  <RichTextEditor
+                                                    placeholder="Add an admin note or paste formatted content..."
+                                                    value={adminNoteInputs[task.id] || ''}
+                                                    onChange={note => setAdminNoteInputs(prev => ({ ...prev, [task.id]: note }))}
+                                                    disabled={savingAdminNote[task.id]}
+                                                  />
+                                                  <button
+                                                    type="button"
+                                                    disabled={savingAdminNote[task.id] || isRichTextEmpty(adminNoteInputs[task.id] || '')}
+                                                    onClick={async event => {
+                                                      event.stopPropagation()
+                                                      const note = sanitizeRichText(adminNoteInputs[task.id] || '')
+                                                      if (isRichTextEmpty(note)) return
+                                                      setSavingAdminNote(prev => ({ ...prev, [task.id]: true }))
+                                                      try {
+                                                        await saveTaskNote(task.id, { note }, getToken())
+                                                        const refreshed = await getTaskNotes(task.id)
+                                                        setTaskNotes(prev => ({ ...prev, [task.id]: refreshed || [] }))
+                                                        setAdminNoteInputs(prev => ({ ...prev, [task.id]: '' }))
+                                                      } catch (err) {
+                                                        alert('Failed to save note: ' + err.message)
+                                                      } finally {
+                                                        setSavingAdminNote(prev => ({ ...prev, [task.id]: false }))
+                                                      }
+                                                    }}
+                                                    style={{
+                                                      height: '36px', padding: '0 14px', background: '#3D35C4', color: '#fff',
+                                                      border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+                                                      cursor: 'pointer', whiteSpace: 'nowrap',
+                                                      opacity: savingAdminNote[task.id] || isRichTextEmpty(adminNoteInputs[task.id] || '') ? 0.55 : 1
+                                                    }}
+                                                  >
+                                                    {savingAdminNote[task.id] ? 'Saving...' : 'Save Note'}
+                                                  </button>
+                                                </div>
                                               </div>
                                             )}
                                           </div>
@@ -2905,6 +3071,14 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                 onChange={e => setAssignWork(e.target.value)}
                                 required
                                 style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <div style={{ flex: '1 0 100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <label style={{ fontSize: '11px', fontWeight: '600', color: '#757575' }}>Task Details / Notes</label>
+                              <RichTextEditor
+                                placeholder="Paste formatted instructions, headings, lists, or research notes..."
+                                value={assignDescription}
+                                onChange={setAssignDescription}
                               />
                             </div>
                             <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>

@@ -27,6 +27,8 @@ const runMigration = async () => {
         registration_key text NOT NULL,
         is_active boolean NOT NULL DEFAULT true,
         visibility_mode text NOT NULL DEFAULT 'intern_choice' CHECK (visibility_mode IN ('public', 'private', 'intern_choice')),
+        created_by uuid,
+        is_archived boolean DEFAULT false,
         created_at timestamptz NOT NULL DEFAULT now()
       );
     `)
@@ -49,6 +51,12 @@ const runMigration = async () => {
         profile_visible boolean NOT NULL DEFAULT true,
         photo bytea,
         photo_mime_type text,
+        is_archived boolean DEFAULT false,
+        archived_at timestamptz,
+        intern_status text,
+        discontinued_reason text,
+        login_blocked boolean DEFAULT false,
+        feedback_given_at timestamptz,
         created_at timestamptz NOT NULL DEFAULT now()
       );
     `)
@@ -59,6 +67,10 @@ const runMigration = async () => {
         id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
         role text NOT NULL CHECK (role IN ('super_admin', 'admin', 'intern')),
         intern_id uuid REFERENCES public.interns(id) ON DELETE SET NULL,
+        name text,
+        email text,
+        password text,
+        must_change_password boolean DEFAULT false,
         created_at timestamptz NOT NULL DEFAULT now()
       );
     `)
@@ -120,9 +132,24 @@ const runMigration = async () => {
       CREATE TABLE IF NOT EXISTS public.task_notes (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         task_id uuid NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
+        intern_id uuid NOT NULL REFERENCES public.interns(id) ON DELETE CASCADE,
         note text NOT NULL,
-        created_at timestamptz DEFAULT now()
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
       )
+    `)
+
+    // Reconcile older task_notes tables with the current note model.
+    await pool.query(`
+      ALTER TABLE public.task_notes
+        ADD COLUMN IF NOT EXISTS intern_id uuid REFERENCES public.interns(id) ON DELETE CASCADE;
+      UPDATE public.task_notes n
+      SET intern_id = t.intern_id
+      FROM public.tasks t
+      WHERE n.task_id = t.id AND n.intern_id IS NULL;
+      ALTER TABLE public.task_notes ALTER COLUMN intern_id SET NOT NULL;
+      ALTER TABLE public.task_notes
+        ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
     `)
 
     // intern_feedback table

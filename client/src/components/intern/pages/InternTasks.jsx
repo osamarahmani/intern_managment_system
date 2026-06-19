@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { formatDate } from '../../../utils/formatDate'
 import { getTaskNotes, saveTaskNote, getSubTasksByTaskId, updateSubTaskStatus } from '../../../services/taskService'
 import { getToken } from '../../../services/authService'
+import RichTextEditor from '../../RichTextEditor'
+import RichTextContent from '../../RichTextContent'
+import { isRichTextEmpty, sanitizeRichText } from '../../../utils/richText'
+import { downloadTaskReportPdf } from '../../../utils/taskReportPdf'
+import useAutoRefresh from '../../../hooks/useAutoRefresh'
 
 const thStyle = {
   padding: '10px 16px',
@@ -66,7 +71,7 @@ const upcomingBadge = {
   textTransform: 'uppercase'
 };
 
-const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
+const InternTasks = ({ tasks, onUpdateTaskStatus, internName }) => {
   const [activeStatusTab, setActiveStatusTab] = useState('not_started')
   const [expandedTaskId, setExpandedTaskId] = useState(null)
   const [subTaskLists, setSubTaskLists] = useState({})
@@ -76,6 +81,17 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
   const [savingNote, setSavingNote] = useState({})
   const [selectedStatus, setSelectedStatus] = useState({})
   const [submissionDates, setSubmissionDates] = useState({})
+  const [exportingReport, setExportingReport] = useState(null)
+
+  useAutoRefresh(async () => {
+    if (!expandedTaskId) return
+    const [notes, subtasks] = await Promise.all([
+      getTaskNotes(expandedTaskId),
+      getSubTasksByTaskId(expandedTaskId)
+    ])
+    setTaskNotes(prev => ({ ...prev, [expandedTaskId]: notes || [] }))
+    setSubTaskLists(prev => ({ ...prev, [expandedTaskId]: subtasks || [] }))
+  }, 10000, Boolean(expandedTaskId))
 
   useEffect(() => {
     const statusMap = {}
@@ -127,8 +143,8 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
   }
 
   const handleSaveNote = async (taskId) => {
-    const note = noteInputs[taskId]?.trim()
-    if (!note) return
+    const note = sanitizeRichText(noteInputs[taskId] || '')
+    if (isRichTextEmpty(note)) return
     setSavingNote(prev => ({ ...prev, [taskId]: true }))
     try {
       await saveTaskNote(taskId, { note }, getToken())
@@ -139,6 +155,38 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
       alert('Failed to save note: ' + err.message)
     } finally {
       setSavingNote(prev => ({ ...prev, [taskId]: false }))
+    }
+  }
+
+  const exportSingleTask = async task => {
+    setExportingReport(task.id)
+    try {
+      const [notes, subtasks] = await Promise.all([getTaskNotes(task.id), getSubTasksByTaskId(task.id)])
+      setTaskNotes(prev => ({ ...prev, [task.id]: notes || [] }))
+      setSubTaskLists(prev => ({ ...prev, [task.id]: subtasks || [] }))
+      downloadTaskReportPdf({ internName, tasks: [{ ...task, notes: notes || [], subtasks: subtasks || [] }] })
+    } catch (err) {
+      alert('Failed to export task report: ' + err.message)
+    } finally {
+      setExportingReport(null)
+    }
+  }
+
+  const exportAllTasks = async () => {
+    setExportingReport('all')
+    try {
+      const reportData = await Promise.all(tasks.map(task => Promise.all([getTaskNotes(task.id), getSubTasksByTaskId(task.id)])))
+      const reportTasks = tasks.map((task, index) => ({
+        ...task,
+        notes: reportData[index][0] || [],
+        subtasks: reportData[index][1] || []
+      }))
+      setTaskNotes(prev => ({ ...prev, ...Object.fromEntries(reportTasks.map(task => [task.id, task.notes])) }))
+      downloadTaskReportPdf({ internName, tasks: reportTasks, consolidated: true })
+    } catch (err) {
+      alert('Failed to export consolidated report: ' + err.message)
+    } finally {
+      setExportingReport(null)
     }
   }
 
@@ -173,7 +221,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
       {/* Status Tabs */}
       <div style={{
         display: 'flex', borderBottom: '2px solid #E0E0E0',
-        background: '#fff', paddingLeft: '8px'
+        background: '#fff', paddingLeft: '8px', alignItems: 'center', flexWrap: 'wrap'
       }}>
         {STATUS_TABS.map(tab => {
           const isActive = activeStatusTab === tab.key
@@ -204,6 +252,19 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
             </button>
           )
         })}
+        <button
+          type="button"
+          onClick={exportAllTasks}
+          disabled={exportingReport !== null}
+          style={{
+            marginLeft: 'auto', marginRight: '10px', height: '34px', padding: '0 14px',
+            border: '1px solid #3D35C4', borderRadius: '7px', background: '#F8F7FF',
+            color: '#3D35C4', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+            opacity: exportingReport !== null ? 0.6 : 1
+          }}
+        >
+          {exportingReport === 'all' ? 'Preparing PDF…' : '⇩ Export All Notes PDF'}
+        </button>
       </div>
 
       {/* Empty state for tab */}
@@ -261,6 +322,21 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                 whiteSpace: 'nowrap', marginRight: '8px'
               }}>{statusLabel}</span>
 
+              <button
+                type="button"
+                title="Export this task as a PDF report"
+                disabled={exportingReport !== null}
+                onClick={event => { event.stopPropagation(); exportSingleTask(task) }}
+                style={{
+                  height: '30px', padding: '0 10px', border: '1px solid #D8D5ED',
+                  borderRadius: '6px', background: '#fff', color: '#3D35C4',
+                  fontSize: '11px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                  opacity: exportingReport !== null ? 0.55 : 1
+                }}
+              >
+                {exportingReport === task.id ? 'Preparing…' : '⇩ PDF'}
+              </button>
+
               {/* Expand chevron */}
               <span style={{
                 fontSize: '16px', color: '#9E9E9E',
@@ -275,7 +351,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
 
                 {/* Task description if any */}
                 {task.description && (
-                  <p style={{ margin: 0, fontSize: '13px', color: '#555', lineHeight: 1.6 }}>{task.description}</p>
+                  <RichTextContent value={task.description} />
                 )}
 
                 {/* Update Status Section */}
@@ -365,25 +441,19 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                           padding: '10px 12px', background: '#FFFDE7',
                           borderRadius: '6px', border: '1px solid #FFF9C4'
                         }}>
-                          <p style={{ margin: 0, fontSize: '13px', color: '#444', lineHeight: 1.6 }}>{n.note}</p>
+                          <RichTextContent value={n.note} />
                         </div>
                       ))}
                     </div>
                   )}
 
                   {/* Add new note */}
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                    <textarea
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <RichTextEditor
                       placeholder="Add a note about your progress..."
                       value={noteInputs[task.id] || ''}
-                      onChange={e => setNoteInputs(prev => ({ ...prev, [task.id]: e.target.value }))}
-                      onClick={e => e.stopPropagation()}
-                      rows={2}
-                      style={{
-                        flex: 1, padding: '8px 10px', border: '1px solid #E0E0E0',
-                        borderRadius: '6px', fontSize: '13px', resize: 'none',
-                        fontFamily: 'inherit', boxSizing: 'border-box'
-                      }}
+                      onChange={note => setNoteInputs(prev => ({ ...prev, [task.id]: note }))}
+                      disabled={savingNote[task.id]}
                     />
                     <button
                       type="button"

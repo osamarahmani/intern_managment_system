@@ -254,9 +254,24 @@ router.post('/:taskId/notes', verifyToken, async (req, res) => {
       logger.warn('tasks.createNote', 'Note text is required', { taskId })
       return res.status(400).json({ error: 'Note text is required' })
     }
+    const taskResult = await pool.query(
+      'SELECT id, intern_id FROM tasks WHERE id = $1',
+      [taskId]
+    )
+    if (taskResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' })
+    }
+
+    const task = taskResult.rows[0]
+    if (req.user.role === 'intern' && task.intern_id !== req.user.intern_id) {
+      return res.status(403).json({ error: 'Access denied: cannot add notes to another intern\'s task' })
+    }
+
     const result = await pool.query(
-      `INSERT INTO task_notes (task_id, note) VALUES ($1, $2) RETURNING *`,
-      [taskId, note.trim()]
+      `INSERT INTO task_notes (task_id, intern_id, note)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [task.id, task.intern_id, note.trim()]
     )
     logger.success('tasks.createNote', 'Note saved successfully', { taskId, note_id: result.rows[0].id })
     res.json(result.rows[0])

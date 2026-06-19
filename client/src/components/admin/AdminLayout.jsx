@@ -5,6 +5,7 @@ import ArchivedInterns from './ArchivedInterns';
 import ArchivedBatches from './ArchivedBatches';
 import { getAllInterns, approveIntern, rejectIntern } from '../../services/internService';
 import './AdminLayout.css';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 
 const AdminLayout = ({ onLogout }) => {
   const [pendingInterns, setPendingInterns] = useState([]);
@@ -40,6 +41,9 @@ const AdminLayout = ({ onLogout }) => {
       console.error('Error fetching pending registrations:', err.message);
     }
   };
+
+  // Keep the notification bell and approvals list current without a full-page refresh.
+  useAutoRefresh(fetchPending, 10000);
 
   const handleApprove = async (id) => {
     try {
