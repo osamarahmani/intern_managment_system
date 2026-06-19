@@ -3,6 +3,7 @@ const pool = require('../pool')
 const getAllBatches = async () => {
   const result = await pool.query(
     `SELECT b.*, p.name AS mentor_name, p.email AS mentor_email,
+       (SELECT COUNT(*) FROM interns ia WHERE ia.batch_number = b.batch_number)::int AS total_intern_count,
        COUNT(i.id)::int AS intern_count,
        COUNT(i.id) FILTER (WHERE COALESCE(i.intern_status, 'active') = 'active')::int AS active_intern_count,
        COUNT(i.id) FILTER (WHERE i.intern_status = 'completed')::int AS completed_intern_count,
@@ -22,6 +23,7 @@ const getAllBatches = async () => {
 const getBatchesByAdmin = async (profileId) => {
   const result = await pool.query(
     `SELECT b.*, p.name AS mentor_name, p.email AS mentor_email,
+       (SELECT COUNT(*) FROM interns ia WHERE ia.batch_number = b.batch_number)::int AS total_intern_count,
        COUNT(i.id)::int AS intern_count,
        COUNT(i.id) FILTER (WHERE COALESCE(i.intern_status, 'active') = 'active')::int AS active_intern_count,
        COUNT(i.id) FILTER (WHERE i.intern_status = 'completed')::int AS completed_intern_count,

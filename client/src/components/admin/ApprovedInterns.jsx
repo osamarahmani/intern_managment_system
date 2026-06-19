@@ -1570,6 +1570,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                   {batches.map((batch) => {
                     const isSelected = summaryBatch && summaryBatch.id === batch.id;
                     const isCompleted = batch.internship_completed === true;
+                    const totalInterns = batch.total_intern_count ?? batch.intern_count ?? 0;
                     return (
                       <div
                         key={batch.id}
@@ -1664,6 +1665,46 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                             }}>
                               {batch.is_active ? 'Active' : 'Inactive'}
                             </span>
+                          </div>
+                        </div>
+
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                          gap: '10px',
+                          padding: '12px',
+                          borderRadius: '10px',
+                          background: '#FFFFFF',
+                          border: '1px solid #EEEEEE'
+                        }}>
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#757575', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              Total Students
+                            </div>
+                            <div style={{ fontSize: '22px', fontWeight: '800', color: '#212121', marginTop: '2px' }}>
+                              {totalInterns}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#757575', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              Approved Interns
+                            </div>
+                            <div style={{ fontSize: '22px', fontWeight: '800', color: '#3D35C4', marginTop: '2px' }}>
+                              {batch.intern_count ?? 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#757575', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              Progress
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                              <span style={{ background: '#E8F5E9', color: '#2E7D32', borderRadius: '999px', padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}>
+                                {batch.active_intern_count ?? 0} Active
+                              </span>
+                              <span style={{ background: '#F0EEFF', color: '#3D35C4', borderRadius: '999px', padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}>
+                                {batch.completed_intern_count ?? 0} Completed
+                              </span>
+                            </div>
                           </div>
                         </div>
 
