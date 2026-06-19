@@ -61,10 +61,18 @@ export const saveTaskNote = async (taskId, noteData, token = getToken()) => {
   }, token)
 }
 
-export const getAITaskDrafts = async (internId) => {
-  return await apiClient(`/api/tasks/ai-drafts/${internId}`, { method: 'GET' })
+export const getAITaskDrafts = async (internId, token = getToken()) => {
+  return await apiClient(`/api/tasks/ai-drafts/${internId}`, { method: 'GET' }, token)
 }
 
-export const assignAITaskDraft = async (internId, draftId) => {
-  return await apiClient(`/api/tasks/ai-drafts/${internId}/assign/${draftId}`, { method: 'POST' })
+export const assignAITaskDraft = async (internId, draftId, token = getToken()) => {
+  return await apiClient(`/api/tasks/ai-drafts/${internId}/assign/${draftId}`, { method: 'POST' }, token)
 }
+
+export const updateAITaskDraft = async (draftId, draftData, token = getToken()) => {
+  return apiClient(`/api/tasks/ai-drafts/${draftId}`, {
+    method: 'PUT',
+    body: JSON.stringify(draftData)
+  }, token)
+}
+

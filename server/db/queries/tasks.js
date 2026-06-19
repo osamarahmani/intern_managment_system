@@ -74,6 +74,15 @@ const deleteAITaskDrafts = async (internId) => {
   await pool.query(`DELETE FROM ai_task_drafts WHERE intern_id = $1`, [internId])
 }
 
+const updateAITaskDraft = async (draftId, data) => {
+  const { title, description, expected_date } = data
+  const result = await pool.query(
+    `UPDATE ai_task_drafts SET title = $1, description = $2, expected_date = $3 WHERE id = $4 RETURNING *`,
+    [title, description, expected_date, draftId]
+  )
+  return result.rows[0]
+}
+
 module.exports = {
   getTasksByInternId,
   getTaskById,
@@ -83,5 +92,7 @@ module.exports = {
   saveAITaskDrafts,
   getAITaskDrafts,
   markDraftAssigned,
-  deleteAITaskDrafts
+  deleteAITaskDrafts,
+  updateAITaskDraft
 }
+
