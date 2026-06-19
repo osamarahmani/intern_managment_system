@@ -45,6 +45,72 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 })
 
+// GET /api/tasks/ai-drafts/:internId
+router.get('/ai-drafts/:internId', verifyToken, verifyAdmin, async (req, res) => {
+  const { internId } = req.params
+  logger.info('tasks.getAIDrafts', 'Fetching AI task drafts', { internId })
+  try {
+    const drafts = await taskQueries.getAITaskDrafts(internId)
+    logger.success('tasks.getAIDrafts', 'Fetched AI task drafts successfully', { internId, count: drafts.length })
+    res.json(drafts)
+  } catch (err) {
+    logger.error('tasks.getAIDrafts', 'Failed to fetch AI task drafts', { internId, error: err.message })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/tasks/ai-drafts/:internId/assign/:draftId — assign one draft as a real task
+router.post('/ai-drafts/:internId/assign/:draftId', verifyToken, verifyAdmin, async (req, res) => {
+  const { internId, draftId } = req.params
+  logger.info('tasks.assignAIDraft', 'Assigning AI task draft', { internId, draftId })
+  try {
+    const drafts = await taskQueries.getAITaskDrafts(internId)
+    const draft = drafts.find(d => d.id === draftId)
+    if (!draft) {
+      logger.warn('tasks.assignAIDraft', 'Draft not found', { internId, draftId })
+      return res.status(404).json({ error: 'Draft not found' })
+    }
+    if (draft.is_assigned) {
+      logger.warn('tasks.assignAIDraft', 'Draft already assigned', { internId, draftId })
+      return res.status(400).json({ error: 'Already assigned' })
+    }
+
+    const task = await taskQueries.createTask({
+      intern_id: internId,
+      title: draft.title,
+      description: draft.description,
+      deliverables: draft.deliverables,
+      expected_date: draft.expected_date,
+      is_ai_generated: true
+    })
+    await taskQueries.markDraftAssigned(draft.id, task.id)
+    logger.success('tasks.assignAIDraft', 'AI task draft assigned successfully', { internId, draftId, task_id: task.id })
+    res.json({ task })
+  } catch (err) {
+    logger.error('tasks.assignAIDraft', 'Failed to assign AI task draft', { internId, draftId, error: err.message })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PUT /api/tasks/ai-drafts/:draftId — edit a draft before assigning
+router.put('/ai-drafts/:draftId', verifyToken, verifyAdmin, async (req, res) => {
+  const { draftId } = req.params
+  const { title, description, expected_date } = req.body
+  logger.info('tasks.updateAIDraft', 'Updating AI task draft', { draftId })
+  try {
+    const updated = await taskQueries.updateAITaskDraft(draftId, { title, description, expected_date })
+    if (!updated) {
+      logger.warn('tasks.updateAIDraft', 'Draft not found', { draftId })
+      return res.status(404).json({ error: 'Draft not found' })
+    }
+    logger.success('tasks.updateAIDraft', 'AI task draft updated successfully', { draftId })
+    res.json(updated)
+  } catch (err) {
+    logger.error('tasks.updateAIDraft', 'Failed to update AI task draft', { draftId, error: err.message })
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // PUT /api/tasks/:id — Update task details or status (Admin or Task Owner)
 router.put('/:id', verifyToken, async (req, res) => {
   const { id } = req.params
@@ -244,53 +310,6 @@ router.put('/subtask/:subtaskId/status', verifyToken, async (req, res) => {
     res.json({ subtask: result.rows[0], parentAutoCompleted: allDone })
   } catch (err) {
     logger.error('tasks.updateSubtaskStatus', 'Failed to update subtask status', { subtaskId, error: err.message })
-    res.status(500).json({ error: err.message })
-  }
-})
-
-// GET /api/tasks/ai-drafts/:internId
-router.get('/ai-drafts/:internId', verifyToken, verifyAdmin, async (req, res) => {
-  const { internId } = req.params
-  logger.info('tasks.getAIDrafts', 'Fetching AI task drafts', { internId })
-  try {
-    const drafts = await taskQueries.getAITaskDrafts(internId)
-    logger.success('tasks.getAIDrafts', 'Fetched AI task drafts successfully', { internId, count: drafts.length })
-    res.json(drafts)
-  } catch (err) {
-    logger.error('tasks.getAIDrafts', 'Failed to fetch AI task drafts', { internId, error: err.message })
-    res.status(500).json({ error: err.message })
-  }
-})
-
-// POST /api/tasks/ai-drafts/:internId/assign/:draftId — assign one draft as a real task
-router.post('/ai-drafts/:internId/assign/:draftId', verifyToken, verifyAdmin, async (req, res) => {
-  const { internId, draftId } = req.params
-  logger.info('tasks.assignAIDraft', 'Assigning AI task draft', { internId, draftId })
-  try {
-    const drafts = await taskQueries.getAITaskDrafts(internId)
-    const draft = drafts.find(d => d.id === draftId)
-    if (!draft) {
-      logger.warn('tasks.assignAIDraft', 'Draft not found', { internId, draftId })
-      return res.status(404).json({ error: 'Draft not found' })
-    }
-    if (draft.is_assigned) {
-      logger.warn('tasks.assignAIDraft', 'Draft already assigned', { internId, draftId })
-      return res.status(400).json({ error: 'Already assigned' })
-    }
-
-    const task = await taskQueries.createTask({
-      intern_id: internId,
-      title: draft.title,
-      description: draft.description,
-      deliverables: draft.deliverables,
-      expected_date: draft.expected_date,
-      is_ai_generated: true
-    })
-    await taskQueries.markDraftAssigned(draft.id, task.id)
-    logger.success('tasks.assignAIDraft', 'AI task draft assigned successfully', { internId, draftId, task_id: task.id })
-    res.json({ task })
-  } catch (err) {
-    logger.error('tasks.assignAIDraft', 'Failed to assign AI task draft', { internId, draftId, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })

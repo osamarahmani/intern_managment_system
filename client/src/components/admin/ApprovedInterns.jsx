@@ -17,7 +17,7 @@ import {
 import { getBatches, createBatch, updateBatch, archiveBatch } from '../../services/batchService';
 import { getProjectByInternId, assignProject, generateAITasks } from '../../services/projectService';
 import { getTasksByInternId, assignTask, deleteTask, updateTask } from '../../services/taskService';
-import { getSubTasksByTaskId, createSubTask, updateSubTaskStatus, getTaskNotes, saveTaskNote, updateTaskStatus, getAITaskDrafts, assignAITaskDraft } from '../../services/taskService';
+import { getSubTasksByTaskId, createSubTask, updateSubTaskStatus, getTaskNotes, saveTaskNote, updateTaskStatus, getAITaskDrafts, assignAITaskDraft, updateAITaskDraft } from '../../services/taskService';
 
 const thStyle = {
   padding: '10px 16px',
@@ -184,6 +184,11 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   const [taskSubTasks, setTaskSubTasks] = useState({})
   const [taskNotes, setTaskNotes] = useState({})
   const [aiDraftsExist, setAiDraftsExist] = useState(false)
+  const [editingDraftId, setEditingDraftId] = useState(null)
+  const [editDraftForm, setEditDraftForm] = useState({ title: '', description: '', expected_date: '' })
+  const [showDateRangeModal, setShowDateRangeModal] = useState(false)
+  const [genStartDate, setGenStartDate] = useState('')
+  const [genEndDate, setGenEndDate] = useState('')
 
   useEffect(() => {
     if (selectedIntern) {
@@ -808,24 +813,10 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       setProjectLive(data.live_project_link || '');
 
       if (wasFirstAssignment) {
-        setAiLoading(true)
-        try {
-          const result = await generateAITasks(
-            data.title,
-            data.description,
-            formatDateForInput(selectedIntern.starting_date),
-            formatDateForInput(selectedIntern.ending_date)
-          )
-          if (result && result.tasks && result.tasks.length > 0) {
-            setAiTasks(result.tasks)
-            setShowAiModal(true)
-            setActiveTab('tasks')
-          }
-        } catch (err) {
-          alert('AI task generation failed: ' + err.message)
-        } finally {
-          setAiLoading(false)
-        }
+        setGenStartDate(formatDateForInput(selectedIntern.starting_date))
+        setGenEndDate(formatDateForInput(selectedIntern.ending_date))
+        setShowDateRangeModal(true)
+        setActiveTab('tasks')
       }
     } catch (err) {
       alert(`Project assignment failed: ${err.message}`);
@@ -963,15 +954,30 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     }
   }
 
-  const handleGenerateAITasks = async () => {
+  const openGenerateTasksModal = () => {
     if (!selectedIntern || !projects.length) return
+    setGenStartDate(formatDateForInput(selectedIntern.starting_date))
+    setGenEndDate(formatDateForInput(selectedIntern.ending_date))
+    setShowDateRangeModal(true)
+  }
+
+  const handleConfirmGenerateAITasks = async () => {
+    if (!genStartDate || !genEndDate) {
+      alert('Please select both a start and end date.')
+      return
+    }
+    if (new Date(genEndDate) < new Date(genStartDate)) {
+      alert('End date cannot be before start date.')
+      return
+    }
+    setShowDateRangeModal(false)
     setAiLoading(true)
     try {
       const result = await generateAITasks(
         projects[0].title,
         projects[0].description,
-        selectedIntern.starting_date,
-        selectedIntern.ending_date,
+        genStartDate,
+        genEndDate,
         selectedIntern.id
       )
       if (result && result.tasks && result.tasks.length > 0) {
@@ -2466,7 +2472,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                             <div style={{ display: 'flex', alignItems: 'center' }}>
                               <button
                                 type="button"
-                                onClick={handleGenerateAITasks}
+                                onClick={openGenerateTasksModal}
                                 disabled={aiLoading || !projects.length}
                                 style={{
                                   background: aiLoading ? '#F5F5F5' : 'linear-gradient(135deg, #3D35C4, #03DAC6)',
@@ -2897,6 +2903,64 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
         </div>
       )}
 
+      {/* Date Range Modal for AI Task Generation */}
+      {showDateRangeModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px'
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '14px', width: '100%', maxWidth: '420px',
+            padding: '28px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+          }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: '700', color: '#212121' }}>
+              📅 Set Task Plan Duration
+            </h3>
+            <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#757575' }}>
+              AI will generate one task per working day (weekends excluded) across this date range.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Start Date</label>
+                <input
+                  type="date"
+                  value={genStartDate}
+                  onChange={(e) => setGenStartDate(e.target.value)}
+                  style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>End Date</label>
+                <input
+                  type="date"
+                  value={genEndDate}
+                  onChange={(e) => setGenEndDate(e.target.value)}
+                  style={{ height: '40px', padding: '0 12px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13.5px', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowDateRangeModal(false)}
+                style={{ height: '38px', padding: '0 20px', background: '#F5F5F5', color: '#212121', border: '1px solid #E0E0E0', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmGenerateAITasks}
+                style={{ height: '38px', padding: '0 20px', background: 'linear-gradient(135deg, #3D35C4, #03DAC6)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                ✨ Generate Tasks
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* AI Task Review Modal */}
       {showAiModal && (
         <div style={{
@@ -2918,43 +2982,116 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
             </div>
 
             <div style={{ overflowY: 'auto', flex: 1, padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {aiTasks.map((draft, index) => (
-                <div key={draft.id || index} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '12px',
-                  padding: '12px 14px', border: `1px solid ${draft.is_assigned ? '#A5D6A7' : '#E0E0E0'}`,
-                  borderRadius: '8px', background: draft.is_assigned ? '#F1F8E9' : '#FAFAFA'
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ margin: '0 0 2px', fontSize: '13px', fontWeight: '600', color: '#212121' }}>{draft.title}</p>
-                    <p style={{ margin: '0 0 4px', fontSize: '12px', color: '#757575', lineHeight: 1.5 }}>{draft.description}</p>
-                    <span style={{ fontSize: '11px', color: '#9E9E9E' }}>📅 {formatDate(draft.expected_date)}</span>
+              {aiTasks.map((draft, index) => {
+                const isEditing = editingDraftId === draft.id
+                return (
+                  <div key={draft.id || index} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '12px',
+                    padding: '12px 14px', border: `1px solid ${draft.is_assigned ? '#A5D6A7' : isEditing ? '#3D35C4' : '#E0E0E0'}`,
+                    borderRadius: '8px', background: draft.is_assigned ? '#F1F8E9' : '#FAFAFA'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <input
+                            type="text"
+                            value={editDraftForm.title}
+                            onChange={(e) => setEditDraftForm(prev => ({ ...prev, title: e.target.value }))}
+                            style={{ height: '32px', padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}
+                          />
+                          <textarea
+                            value={editDraftForm.description}
+                            onChange={(e) => setEditDraftForm(prev => ({ ...prev, description: e.target.value }))}
+                            rows={2}
+                            style={{ padding: '8px 10px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '12px', resize: 'none', fontFamily: 'inherit' }}
+                          />
+                          <input
+                            type="date"
+                            value={editDraftForm.expected_date}
+                            onChange={(e) => setEditDraftForm(prev => ({ ...prev, expected_date: e.target.value }))}
+                            style={{ height: '32px', padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '12px', width: 'fit-content' }}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <p style={{ margin: '0 0 2px', fontSize: '13px', fontWeight: '600', color: '#212121' }}>{draft.title}</p>
+                          <p style={{ margin: '0 0 4px', fontSize: '12px', color: '#757575', lineHeight: 1.5 }}>{draft.description}</p>
+                          <span style={{ fontSize: '11px', color: '#9E9E9E' }}>📅 {formatDate(draft.expected_date)}</span>
+                        </>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+                      {draft.is_assigned ? (
+                        <span style={{
+                          background: '#E8F5E9', color: '#2E7D32', border: 'none', borderRadius: '6px',
+                          padding: '8px 16px', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap'
+                        }}>
+                          ✓ Assigned
+                        </span>
+                      ) : isEditing ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const updated = await updateAITaskDraft(draft.id, editDraftForm)
+                                setAiTasks(prev => prev.map(t => t.id === draft.id ? { ...t, ...updated } : t))
+                                setEditingDraftId(null)
+                              } catch (err) {
+                                alert('Failed to save edit: ' + err.message)
+                              }
+                            }}
+                            style={{ background: '#3D35C4', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingDraftId(null)}
+                            style={{ background: '#F5F5F5', color: '#757575', border: '1px solid #E0E0E0', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDraftId(draft.id)
+                              setEditDraftForm({
+                                title: draft.title,
+                                description: draft.description || '',
+                                expected_date: formatDateForInput(draft.expected_date)
+                              })
+                            }}
+                            style={{ background: '#FFFFFF', color: '#3D35C4', border: '1px solid #3D35C4', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await assignAITaskDraft(selectedIntern.id, draft.id)
+                                setAiTasks(prev => prev.map(t => t.id === draft.id ? { ...t, is_assigned: true } : t))
+                                const refreshed = await getTasksByInternId(selectedIntern.id)
+                                if (refreshed) { refreshed.reverse(); setTasks(refreshed) }
+                              } catch (err) {
+                                alert('Failed to assign: ' + err.message)
+                              }
+                            }}
+                            style={{ background: '#3D35C4', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            + Assign
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={draft.is_assigned}
-                    onClick={async () => {
-                      try {
-                        await assignAITaskDraft(selectedIntern.id, draft.id)
-                        setAiTasks(prev => prev.map(t => t.id === draft.id ? { ...t, is_assigned: true } : t))
-                        const refreshed = await getTasksByInternId(selectedIntern.id)
-                        if (refreshed) { refreshed.reverse(); setTasks(refreshed) }
-                      } catch (err) {
-                        alert('Failed to assign: ' + err.message)
-                      }
-                    }}
-                    style={{
-                      background: draft.is_assigned ? '#E8F5E9' : '#3D35C4',
-                      color: draft.is_assigned ? '#2E7D32' : '#fff',
-                      border: 'none', borderRadius: '6px', padding: '8px 16px',
-                      fontSize: '12px', fontWeight: 700,
-                      cursor: draft.is_assigned ? 'default' : 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {draft.is_assigned ? '✓ Assigned' : '+ Assign'}
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid #E0E0E0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
