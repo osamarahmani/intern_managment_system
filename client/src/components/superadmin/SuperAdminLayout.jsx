@@ -57,6 +57,8 @@ const SuperAdminLayout = ({ onLogout }) => {
     hasInterns: false
   })
 
+  const [internStatusCounts, setInternStatusCounts] = useState({ active: 0, discontinued: 0, completed: 0 })
+
   useEffect(() => {
     fetchBatches()
     fetchAdmins()
@@ -82,9 +84,29 @@ const SuperAdminLayout = ({ onLogout }) => {
   const fetchBatches = async () => {
     try {
       const data = await getBatches()
-      if (data) setBatches(data)
+      if (data) {
+        setBatches(data)
+        fetchInternStatusCounts()
+      }
     } catch (err) {
       console.error('Error fetching batches:', err.message)
+    }
+  }
+
+  const fetchInternStatusCounts = async () => {
+    try {
+      const all = await getAllInterns()
+      const approved = (all || []).filter(i => i.status === 'approved')
+      const counts = { active: 0, discontinued: 0, completed: 0 }
+      approved.forEach(i => {
+        const s = i.intern_status || 'active'
+        if (s === 'discontinued') counts.discontinued++
+        else if (s === 'completed') counts.completed++
+        else counts.active++
+      })
+      setInternStatusCounts(counts)
+    } catch (err) {
+      console.error('Error fetching intern status counts:', err.message)
     }
   }
 
@@ -1041,7 +1063,20 @@ const SuperAdminLayout = ({ onLogout }) => {
                 {/* Right Column: Registered Batches */}
                 <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#212121', margin: 0 }}>Registered Batches ({batches.length})</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#212121', margin: 0 }}>Registered Batches ({batches.length})</h3>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ background: '#E8F5E9', color: '#2E7D32', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
+                          🟢 {internStatusCounts.active} Active
+                        </span>
+                        <span style={{ background: '#FFF3F3', color: '#B00020', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
+                          ⛔ {internStatusCounts.discontinued} Discontinued
+                        </span>
+                        <span style={{ background: '#F0EEFF', color: '#3D35C4', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
+                          🎓 {internStatusCounts.completed} Completed
+                        </span>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => handleExportAll()}

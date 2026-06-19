@@ -189,6 +189,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   const [showDateRangeModal, setShowDateRangeModal] = useState(false)
   const [genStartDate, setGenStartDate] = useState('')
   const [genEndDate, setGenEndDate] = useState('')
+  const [internStatusCounts, setInternStatusCounts] = useState({ active: 0, discontinued: 0, completed: 0 })
 
   useEffect(() => {
     if (selectedIntern) {
@@ -625,11 +626,29 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   // Fetch Functions
   // ==========================================================================
 
+  const fetchInternStatusCounts = async () => {
+    try {
+      const all = await getAllInterns()
+      const approved = (all || []).filter(i => i.status === 'approved')
+      const counts = { active: 0, discontinued: 0, completed: 0 }
+      approved.forEach(i => {
+        const s = i.intern_status || 'active'
+        if (s === 'discontinued') counts.discontinued++
+        else if (s === 'completed') counts.completed++
+        else counts.active++
+      })
+      setInternStatusCounts(counts)
+    } catch (err) {
+      console.error('Error fetching intern status counts:', err.message)
+    }
+  }
+
   const fetchBatches = async () => {
     try {
       const data = await getBatches();
       if (data) {
         setBatches(data);
+        fetchInternStatusCounts();
         if (initialBatchNumber) {
           const matched = data.find(b => b.batch_number === initialBatchNumber);
           setSelectedBatch(matched || { batch_number: initialBatchNumber });
@@ -1436,7 +1455,29 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
 
             {/* Existing Batches List Panel */}
             <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Registered Batches ({batches.length})</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', margin: 0 }}>Registered Batches ({batches.length})</h3>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    background: '#E8F5E9', color: '#2E7D32', fontSize: '11px', fontWeight: '700',
+                    padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap'
+                  }}>
+                    🟢 {internStatusCounts.active} Active
+                  </span>
+                  <span style={{
+                    background: '#FFF3F3', color: '#B00020', fontSize: '11px', fontWeight: '700',
+                    padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap'
+                  }}>
+                    ⛔ {internStatusCounts.discontinued} Discontinued
+                  </span>
+                  <span style={{
+                    background: '#F0EEFF', color: '#3D35C4', fontSize: '11px', fontWeight: '700',
+                    padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap'
+                  }}>
+                    🎓 {internStatusCounts.completed} Completed
+                  </span>
+                </div>
+              </div>
 
               {batches.length === 0 ? (
                 <p style={{ color: '#9E9E9E', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No batches provisioned yet.</p>
