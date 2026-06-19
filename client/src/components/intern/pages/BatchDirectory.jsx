@@ -5,6 +5,7 @@ import { getInternById, getInternsByBatch, updateIntern } from '../../../service
 import { getBatches } from '../../../services/batchService';
 import { getProjectByInternId } from '../../../services/projectService';
 import { getTasksByInternId } from '../../../services/taskService';
+import { openExternalUrl, safeExternalUrl } from '../../../utils/safeUrl';
 
 const BatchDirectory = ({ internId, internName, avatarUrl }) => {
   const [loading, setLoading] = useState(true);
@@ -553,10 +554,10 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
 
                           {/* Link Buttons */}
                           <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                            {teammateProject.git_repo_link ? (
+                            {safeExternalUrl(teammateProject.git_repo_link) ? (
                               <button
                                 type="button"
-                                onClick={() => window.open(teammateProject.git_repo_link, '_blank')}
+                                onClick={() => openExternalUrl(teammateProject.git_repo_link)}
                                 style={{
                                   background: '#3E75C3',
                                   color: '#F0EEFF',
@@ -594,10 +595,10 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
                               </button>
                             )}
 
-                            {teammateProject.live_project_link ? (
+                            {safeExternalUrl(teammateProject.live_project_link) ? (
                               <button
                                 type="button"
-                                onClick={() => window.open(teammateProject.live_project_link, '_blank')}
+                                onClick={() => openExternalUrl(teammateProject.live_project_link)}
                                 style={{
                                   background: '#2E6F40',
                                   color: 'white',

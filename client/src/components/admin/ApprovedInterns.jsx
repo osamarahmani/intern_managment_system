@@ -3,7 +3,7 @@ import { marked } from 'marked';
 import apiClient from '../../utils/apiClient';
 import { getToken } from '../../services/authService';
 import InternAvatar from '../InternAvatar';
-import * as XLSX from 'xlsx';
+import { downloadWorkbook } from '../../utils/spreadsheetExport';
 import { formatDate } from '../../utils/formatDate';
 import {
   getAllInterns,
@@ -22,7 +22,9 @@ import RichTextContent from '../RichTextContent';
 import RichTextEditor from '../RichTextEditor';
 import { isRichTextEmpty, sanitizeRichText } from '../../utils/richText';
 import { downloadTaskReportPdf } from '../../utils/taskReportPdf';
+import { safeExternalUrl } from '../../utils/safeUrl';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
+import { keepPreviousIfEqual } from '../../utils/stableState';
 
 const thStyle = {
   padding: '10px 16px',
@@ -253,8 +255,8 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     }
   }, [batches]);
 
-  const fetchBatchSummary = async (batchNum) => {
-    setSummaryLoading(true);
+  const fetchBatchSummary = async (batchNum, silent = false) => {
+    if (!silent) setSummaryLoading(true);
     try {
       // 1. Fetch interns in batch
       const batchInterns = await getInternsByBatch(batchNum);
@@ -263,7 +265,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       const internIds = safeInterns.map(i => i.id);
 
       if (internIds.length === 0) {
-        setSummaryStats({
+        setSummaryStats(previous => keepPreviousIfEqual(previous, {
           totalInterns: 0,
           internsWithProject: 0,
           internsWithoutProject: 0,
@@ -277,7 +279,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
           topPerformer: null,
           topPerformerCount: 0,
           hasInterns: false
-        });
+        }));
         return;
       }
 
@@ -336,7 +338,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       const topPerformer = safeInterns.find(i => i.id === topInternId);
       const topPerformerCount = completedByIntern[topInternId] || 0;
 
-      setSummaryStats({
+      setSummaryStats(previous => keepPreviousIfEqual(previous, {
         totalInterns,
         internsWithProject,
         internsWithoutProject,
@@ -350,12 +352,12 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
         topPerformer,
         topPerformerCount,
         hasInterns: true
-      });
+      }));
 
     } catch (err) {
       console.error('Error fetching batch summary:', err.message);
     } finally {
-      setSummaryLoading(false);
+      if (!silent) setSummaryLoading(false);
     }
   };
 
@@ -428,17 +430,12 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       }));
 
       // 8. Create workbook
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(internSheet), 'Interns');
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(projectSheet), 'Projects');
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(taskSheet), 'Tasks');
-
       // 9. File name
       const fileName = batchNumber
         ? `Batch_${batchNumber}_Export_${new Date().toISOString().split('T')[0]}.xlsx`
         : `All_Batches_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
 
-      XLSX.writeFile(wb, fileName);
+      downloadWorkbook({ Interns: internSheet, Projects: projectSheet, Tasks: taskSheet }, fileName);
     } catch (err) {
       alert('Export failed: ' + err.message);
     } finally {
@@ -450,7 +447,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     if (summaryBatch) {
       fetchBatchSummary(summaryBatch.batch_number);
     }
-  }, [summaryBatch]);
+  }, [summaryBatch?.batch_number]);
 
   // Helper Resets
   const resetProjectForm = () => {
@@ -647,7 +644,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
         else if (s === 'completed') counts.completed++
         else counts.active++
       })
-      setInternStatusCounts(counts)
+      setInternStatusCounts(previous => keepPreviousIfEqual(previous, counts))
     } catch (err) {
       console.error('Error fetching intern status counts:', err.message)
     }
@@ -657,9 +654,9 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     try {
       const data = await getBatches();
       if (data) {
-        setBatches(data);
-        setSummaryBatch(prev => prev ? (data.find(batch => batch.id === prev.id) || prev) : prev);
-        setSelectedBatch(prev => prev ? (data.find(batch => batch.id === prev.id || batch.batch_number === prev.batch_number) || prev) : prev);
+        setBatches(previous => keepPreviousIfEqual(previous, data));
+        setSummaryBatch(prev => prev ? keepPreviousIfEqual(prev, data.find(batch => batch.id === prev.id) || prev) : prev);
+        setSelectedBatch(prev => prev ? keepPreviousIfEqual(prev, data.find(batch => batch.id === prev.id || batch.batch_number === prev.batch_number) || prev) : prev);
         fetchInternStatusCounts();
         if (initialBatchNumber) {
           const matched = data.find(b => b.batch_number === initialBatchNumber);
@@ -675,7 +672,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   const fetchInternsForBatch = async (batchNum) => {
     try {
       const data = await getInternsByBatch(batchNum);
-      if (data) setInterns(data);
+      if (data) setInterns(previous => keepPreviousIfEqual(previous, data));
     } catch (err) {
       console.error('Error fetching interns:', err.message);
     }
@@ -686,20 +683,23 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     await fetchBatches()
 
     if (activeView === 'batches' && summaryBatch) {
-      await fetchBatchSummary(summaryBatch.batch_number)
+      await fetchBatchSummary(summaryBatch.batch_number, true)
     }
 
     if (activeView === 'batchDetails' && selectedBatch) {
       const latestInterns = await getInternsByBatch(selectedBatch.batch_number)
-      setInterns(latestInterns || [])
+      setInterns(previous => keepPreviousIfEqual(previous, latestInterns || []))
       if (selectedIntern) {
         const latestSelected = (latestInterns || []).find(intern => intern.id === selectedIntern.id)
-        if (latestSelected) setSelectedIntern(prev => ({ ...prev, ...latestSelected }))
+        if (latestSelected) setSelectedIntern(prev => keepPreviousIfEqual(prev, { ...prev, ...latestSelected }))
         const latestTasks = await getTasksByInternId(selectedIntern.id)
-        setTasks(latestTasks || [])
+        setTasks(previous => keepPreviousIfEqual(previous, latestTasks || []))
         if (expandedNotesTaskId) {
           const notes = await getTaskNotes(expandedNotesTaskId)
-          setTaskNotes(prev => ({ ...prev, [expandedNotesTaskId]: notes || [] }))
+          setTaskNotes(prev => {
+            const stableNotes = keepPreviousIfEqual(prev[expandedNotesTaskId], notes || [])
+            return stableNotes === prev[expandedNotesTaskId] ? prev : { ...prev, [expandedNotesTaskId]: stableNotes }
+          })
         }
       }
     }
@@ -2439,12 +2439,12 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                               <div
                                 style={{ fontSize: '13px', color: '#555555', margin: '0 0 14px 0', lineHeight: '1.6' }}
                                 className="markdown-preview"
-                                dangerouslySetInnerHTML={{ __html: marked.parse(projects[0].description || '') }}
+                                dangerouslySetInnerHTML={{ __html: sanitizeRichText(marked.parse(projects[0].description || '')) }}
                               />
                               <div style={{ display: 'flex', gap: '10px', marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #EEEEEE' }}>
-                                {projects[0].git_repo_link && (
+                                {safeExternalUrl(projects[0].git_repo_link) && (
                                   <a
-                                    href={projects[0].git_repo_link}
+                                    href={safeExternalUrl(projects[0].git_repo_link)}
                                     target="_blank"
                                     rel="noreferrer"
                                     style={{
@@ -2467,9 +2467,9 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
                                     <i className="ti ti-brand-github" style={{ fontSize: '16px' }} /> Git Repo
                                   </a>
                                 )}
-                                {projects[0].live_project_link && (
+                                {safeExternalUrl(projects[0].live_project_link) && (
                                   <a
-                                    href={projects[0].live_project_link}
+                                    href={safeExternalUrl(projects[0].live_project_link)}
                                     target="_blank"
                                     rel="noreferrer"
                                     style={{

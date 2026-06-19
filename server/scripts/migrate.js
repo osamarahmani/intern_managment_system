@@ -198,6 +198,8 @@ const runMigration = async () => {
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email text UNIQUE;",
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password text;",
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT true;",
+      "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS token_version integer NOT NULL DEFAULT 0;",
+      "ALTER TABLE public.users ADD COLUMN IF NOT EXISTS token_version integer NOT NULL DEFAULT 0;",
       "ALTER TABLE public.batches ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;",
       "ALTER TABLE public.batches ADD COLUMN IF NOT EXISTS archived_at timestamptz;",
       "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;",
@@ -226,6 +228,11 @@ const runMigration = async () => {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_interns_status ON public.interns(status);')
     await pool.query('CREATE INDEX IF NOT EXISTS idx_profiles_intern_id ON public.profiles(intern_id);')
     await pool.query('CREATE INDEX IF NOT EXISTS idx_users_intern_id ON public.users(intern_id);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_tasks_intern_id ON public.tasks(intern_id);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON public.subtasks(task_id);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_task_notes_task_id ON public.task_notes(task_id);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_batches_created_by ON public.batches(created_by);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_password_reset_email ON public.password_reset_tokens(email);')
     await pool.query('CREATE INDEX IF NOT EXISTS idx_projects_intern_id ON public.projects(intern_id);')
     await pool.query('CREATE INDEX IF NOT EXISTS idx_tasks_intern_id ON public.tasks(intern_id);')
 

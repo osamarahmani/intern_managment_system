@@ -1,6 +1,7 @@
 const express = require('express')
 const projectQueries = require('../db/queries/projects')
 const { verifyToken, verifyAdmin, verifyTeammateAccess } = require('../middleware/auth')
+const { canManageIntern } = require('../middleware/authorization')
 const logger = require('../utils/logger')
 const router = express.Router()
 
@@ -14,7 +15,7 @@ router.get('/intern/:internId', verifyToken, verifyTeammateAccess, async (req, r
     res.json(project)
   } catch (err) {
     logger.error('projects.getByInternId', 'Failed to fetch project', { internId, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -29,6 +30,12 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 
   try {
+    if (!await canManageIntern(req.user, intern_id)) return res.status(403).json({ error: 'Access denied' })
+    const validUrl = value => !value || (() => {
+      try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
+    })()
+    if (!validUrl(git_repo_link) || !validUrl(live_project_link)) return res.status(400).json({ error: 'Project links must use HTTP or HTTPS' })
+    if (title.length > 200 || description.length > 20000) return res.status(400).json({ error: 'Project content is too long' })
     const result = await projectQueries.upsertProject({
       intern_id,
       title,
@@ -40,7 +47,7 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     res.json(result)
   } catch (err) {
     logger.error('projects.upsert', 'Failed to upsert project', { intern_id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 

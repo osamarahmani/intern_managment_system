@@ -7,6 +7,7 @@ import RichTextContent from '../../RichTextContent'
 import { isRichTextEmpty, sanitizeRichText } from '../../../utils/richText'
 import { downloadTaskReportPdf } from '../../../utils/taskReportPdf'
 import useAutoRefresh from '../../../hooks/useAutoRefresh'
+import { keepPreviousIfEqual } from '../../../utils/stableState'
 
 const thStyle = {
   padding: '10px 16px',
@@ -89,8 +90,14 @@ const InternTasks = ({ tasks, onUpdateTaskStatus, internName }) => {
       getTaskNotes(expandedTaskId),
       getSubTasksByTaskId(expandedTaskId)
     ])
-    setTaskNotes(prev => ({ ...prev, [expandedTaskId]: notes || [] }))
-    setSubTaskLists(prev => ({ ...prev, [expandedTaskId]: subtasks || [] }))
+    setTaskNotes(prev => {
+      const stableNotes = keepPreviousIfEqual(prev[expandedTaskId], notes || [])
+      return stableNotes === prev[expandedTaskId] ? prev : { ...prev, [expandedTaskId]: stableNotes }
+    })
+    setSubTaskLists(prev => {
+      const stableSubtasks = keepPreviousIfEqual(prev[expandedTaskId], subtasks || [])
+      return stableSubtasks === prev[expandedTaskId] ? prev : { ...prev, [expandedTaskId]: stableSubtasks }
+    })
   }, 10000, Boolean(expandedTaskId))
 
   useEffect(() => {

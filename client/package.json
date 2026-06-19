@@ -10,11 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/caveat": "^5.2.8",
+    "@fontsource-variable/doto": "^5.2.10",
+    "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
+    "@fontsource-variable/roboto": "^5.2.10",
+    "@tabler/icons-webfont": "^3.34.1",
     "@vercel/analytics": "^2.0.1",
     "marked": "^18.0.5",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "xlsx": "^0.18.5"
+    "react-dom": "^19.2.6"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

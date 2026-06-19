@@ -16,8 +16,8 @@ const ChangePassword = ({ token, onPasswordChanged }) => {
       setError('Both fields are required.')
       return
     }
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters.')
+    if (newPassword.length < 12) {
+      setError('Password must be at least 12 characters.')
       return
     }
     if (newPassword !== confirmPassword) {

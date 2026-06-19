@@ -6,6 +6,7 @@ import { getTasksByInternId, updateTask } from '../../services/taskService';
 import './InternLayout.css';
 import InternAvatar from '../InternAvatar';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
+import { keepPreviousIfEqual } from '../../utils/stableState';
 
 // We import subpages directly
 import InternProfilePage from './pages/InternProfile';
@@ -46,9 +47,9 @@ const InternLayout = ({ onLogout }) => {
       const projectData = await getProjectByInternId(internId);
       const tasksData = await getTasksByInternId(internId);
 
-      setInternData(intern);
-      setProject(projectData);
-      setTasks(tasksData || []);
+      setInternData(previous => keepPreviousIfEqual(previous, intern));
+      setProject(previous => keepPreviousIfEqual(previous, projectData));
+      setTasks(previous => keepPreviousIfEqual(previous, tasksData || []));
     } catch (err) {
       console.error('Error fetching intern data:', err.message);
     } finally {

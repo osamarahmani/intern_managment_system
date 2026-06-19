@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -8,12 +8,19 @@ import SuperAdminLayout from './components/superadmin/SuperAdminLayout';
 import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
 import ChangePassword from './components/auth/ChangePassword';
-import { login, logout, getRole } from './services/authService';
+import { login, logout, getToken, getRole } from './services/authService';
 
+const consumeResetToken = () => {
+  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const query = new URLSearchParams(window.location.search)
+  const token = fragment.get('reset-token') || query.get('token') || ''
+  if (token) window.history.replaceState({}, '', window.location.pathname)
+  return token
+}
 
 function App() {
-  const [page, setPage] = useState('login'); // 'login' | 'register' | 'admin' | 'intern'
-  const [userRole, setUserRole] = useState(null);
+  const [resetToken] = useState(consumeResetToken)
+  const [page, setPage] = useState(() => resetToken ? 'resetPassword' : (getToken() && getRole()) || 'login');
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [pendingToken, setPendingToken] = useState(null);
   const [pendingRole, setPendingRole] = useState(null);
@@ -50,7 +57,6 @@ function App() {
       setMustChangePassword(true)
       return data
     }
-    setUserRole(data.role)
     setPage(data.role)
     return data
   }
@@ -59,15 +65,13 @@ function App() {
     sessionStorage.removeItem('pendingToken')
     sessionStorage.removeItem('pendingRole')
     setMustChangePassword(false)
-    setUserRole(pendingRole)
     setPage(pendingRole)
     setPendingToken(null)
     setPendingRole(null)
   }
 
-  const handleLogout = () => {
-    logout();
-    setUserRole(null);
+  const handleLogout = async () => {
+    await logout();
     setPage('login');
   };
 
@@ -100,19 +104,9 @@ function App() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const token = params.get('token')
-    if (token) {
-      setPage('resetPassword')
-      return
-    }
-
-    const savedToken = localStorage.getItem('token')
-    const savedRole = localStorage.getItem('role')
-    if (savedToken && savedRole) {
-      setUserRole(savedRole)
-      setPage(savedRole)
-    }
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
+    localStorage.removeItem('intern_id')
   }, [])
 
   return (
@@ -134,7 +128,7 @@ function App() {
       ) : page === 'forgotPassword' ? (
         <ForgotPassword onBack={() => setPage('login')} />
       ) : page === 'resetPassword' ? (
-        <ResetPassword token={new URLSearchParams(window.location.search).get('token')} onBack={() => setPage('login')} />
+        <ResetPassword token={resetToken} onBack={() => setPage('login')} />
       ) : (
         <Register 
           currentStep={currentStep}

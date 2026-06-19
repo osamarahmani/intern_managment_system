@@ -3,7 +3,10 @@ const Groq = require('groq-sdk')
 const { verifyToken, verifyAdmin } = require('../middleware/auth')
 const taskQueries = require('../db/queries/tasks')
 const logger = require('../utils/logger')
+const { canManageIntern } = require('../middleware/authorization')
+const { rateLimit } = require('../middleware/security')
 const router = express.Router()
+const aiLimit = rateLimit({ windowMs: 60 * 60 * 1000, max: 12, name: 'ai-generation' })
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
@@ -49,7 +52,7 @@ const getWeekdayDates = (startingDate, endingDate) => {
 }
 
 // POST /api/ai/generate-tasks
-router.post('/generate-tasks', verifyToken, verifyAdmin, async (req, res) => {
+router.post('/generate-tasks', verifyToken, verifyAdmin, aiLimit, async (req, res) => {
   const { startingDate, endingDate, projectTitle, projectDescription, intern_id } = req.body
   logger.info('ai.generate-tasks', 'AI task generation started', { projectTitle, intern_id })
 
@@ -58,12 +61,20 @@ router.post('/generate-tasks', verifyToken, verifyAdmin, async (req, res) => {
       logger.warn('ai.generate-tasks', 'startingDate, endingDate, and projectTitle are required', { intern_id })
       return res.status(400).json({ error: 'startingDate, endingDate, and projectTitle are required' })
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startingDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endingDate)) {
+      return res.status(400).json({ error: 'Dates must use YYYY-MM-DD format' })
+    }
+    if (intern_id && !await canManageIntern(req.user, intern_id)) return res.status(403).json({ error: 'Access denied' })
+    if (projectTitle.length > 200 || (projectDescription || '').length > 10000) {
+      return res.status(400).json({ error: 'Project content is too long' })
+    }
 
     const dates = getWeekdayDates(startingDate, endingDate)
     if (dates.length === 0) {
       logger.warn('ai.generate-tasks', 'No valid weekdays found between starting and ending date', { startingDate, endingDate })
       return res.status(400).json({ error: 'No valid weekdays found between starting and ending date' })
     }
+    if (dates.length > 65) return res.status(400).json({ error: 'AI task plans are limited to 65 working days' })
 
     const prompt = `Generate exactly ${dates.length} sequential daily internship tasks for this project, one per working day, in logical order (setup → development → testing → documentation).
 
@@ -113,8 +124,8 @@ Format: [{"title":"short task title","description":"short description here"}]`
 
     // Map titles to dates, fall back gracefully if AI returned fewer/more items than expected
     const tasks = dates.map((date, index) => ({
-      title: taskTitles[index]?.title || `${projectTitle} — Day ${index + 1} task`,
-      description: taskTitles[index]?.description || '',
+      title: String(taskTitles[index]?.title || `${projectTitle} — Day ${index + 1} task`).slice(0, 200),
+      description: String(taskTitles[index]?.description || '').slice(0, 2000),
       expected_date: date
     }))
 
@@ -127,7 +138,7 @@ Format: [{"title":"short task title","description":"short description here"}]`
     res.json({ tasks })
   } catch (err) {
     logger.error('ai.generate-tasks', 'AI task generation failed', { error: err.message })
-    res.status(500).json({ error: 'Failed to generate AI task plan: ' + err.message })
+    res.status(500).json({ error: 'Failed to generate AI task plan' })
   }
 })
 

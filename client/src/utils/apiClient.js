@@ -10,7 +10,8 @@ const apiClient = async (endpoint, options = {}, token = null) => {
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers
+    headers,
+    credentials: 'include'
   })
 
   const data = await response.json()

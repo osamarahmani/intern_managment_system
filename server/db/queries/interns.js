@@ -7,6 +7,20 @@ const getAllInterns = async () => {
   return result.rows
 }
 
+const getInternsByAdmin = async (adminId, archived = false) => {
+  const result = await pool.query(
+    `SELECT i.id, i.name, i.college_name, i.dept, i.year, i.sem, i.mail, i.number,
+            i.starting_date, i.ending_date, i.batch_number, i.status, i.profile_visible,
+            i.created_at, i.is_archived, i.archived_at, i.intern_status,
+            i.discontinued_reason, i.login_blocked, i.feedback_given_at
+     FROM interns i JOIN batches b ON b.batch_number = i.batch_number
+     WHERE b.created_by = $1 AND COALESCE(i.is_archived, false) = $2
+     ORDER BY i.created_at DESC`,
+    [adminId, archived]
+  )
+  return result.rows
+}
+
 const getInternById = async (id) => {
   const result = await pool.query(
     'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE id = $1',
@@ -31,13 +45,13 @@ const getInternPhoto = async (id) => {
   return result.rows[0]
 }
 
-const createIntern = async (data) => {
+const createIntern = async (data, db = pool) => {
   const {
     name, college_name, dept, year, sem, mail, number,
     starting_date, ending_date, batch_number, photo, photo_mime_type
   } = data
 
-  const result = await pool.query(
+  const result = await db.query(
     `INSERT INTO interns
      (name, college_name, dept, year, sem, mail, number,
       starting_date, ending_date, batch_number, photo, photo_mime_type, status, is_archived)
@@ -57,17 +71,30 @@ const updateIntern = async (id, data) => {
     starting_date, ending_date, batch_number, status, profile_visible
   } = data
 
-  const result = await pool.query(
-    `UPDATE interns SET name=$1, college_name=$2, dept=$3, year=$4, sem=$5,
-     mail=$6, number=$7, starting_date=$8, ending_date=$9,
-     batch_number=$10, status=$11, profile_visible=$12 WHERE id=$13 RETURNING *`,
-    [
-      name, college_name, dept, year, sem, mail, number,
-      starting_date, ending_date, batch_number, status, profile_visible,
-      id
-    ]
-  )
-  return result.rows[0]
+  const db = await pool.connect()
+  try {
+    await db.query('BEGIN')
+    const result = await db.query(
+      `UPDATE interns SET name=$1, college_name=$2, dept=$3, year=$4, sem=$5,
+       mail=$6, number=$7, starting_date=$8, ending_date=$9,
+       batch_number=$10, status=$11, profile_visible=$12 WHERE id=$13 RETURNING *`,
+      [name, college_name, dept, year, sem, String(mail).trim().toLowerCase(), number,
+        starting_date, ending_date, batch_number, status, profile_visible, id]
+    )
+    if (result.rows[0]) {
+      await db.query(
+        'UPDATE users SET email = $1, token_version = token_version + CASE WHEN email IS DISTINCT FROM $1 THEN 1 ELSE 0 END WHERE intern_id = $2',
+        [String(mail).trim().toLowerCase(), id]
+      )
+    }
+    await db.query('COMMIT')
+    return result.rows[0]
+  } catch (error) {
+    await db.query('ROLLBACK')
+    throw error
+  } finally {
+    db.release()
+  }
 }
 
 const updateInternPhoto = async (id, photoBuffer, mimeType) => {
@@ -104,32 +131,7 @@ const restoreIntern = async (internId) => {
     `UPDATE interns SET is_archived = false, archived_at = null, status = 'approved' WHERE id = $1 RETURNING *`,
     [internId]
   )
-  const intern = result.rows[0]
-
-  if (intern) {
-    const email = intern.mail
-    let authUserResult = await pool.query('SELECT id FROM auth.users WHERE email = $1', [email])
-    let userId
-    if (authUserResult.rows.length === 0) {
-      const newId = require('crypto').randomUUID()
-      await pool.query('INSERT INTO auth.users (id, email) VALUES ($1, $2)', [newId, email])
-      userId = newId
-    } else {
-      userId = authUserResult.rows[0].id
-    }
-
-    const profileResult = await pool.query('SELECT id FROM profiles WHERE intern_id = $1', [internId])
-    if (profileResult.rows.length === 0) {
-      await pool.query(
-        `INSERT INTO profiles (id, role, intern_id, name, email, password)
-         VALUES ($1, 'intern', $2, $3, $4, $5)
-         ON CONFLICT (id) DO UPDATE SET intern_id = $2, role = 'intern'`,
-        [userId, internId, intern.name, email, '']
-      )
-    }
-  }
-
-  return intern
+  return result.rows[0]
 }
 
 const getArchivedInterns = async () => {
@@ -141,21 +143,32 @@ const getArchivedInterns = async () => {
 
 const getInternByEmail = async (email) => {
   const result = await pool.query(
-    'SELECT * FROM interns WHERE mail = $1',
+    'SELECT * FROM interns WHERE LOWER(mail) = LOWER($1)',
     [email]
   )
   return result.rows[0]
 }
 
 const permanentDeleteIntern = async (internId) => {
-  await pool.query('DELETE FROM profiles WHERE intern_id = $1', [internId])
-  await pool.query('DELETE FROM users WHERE intern_id = $1', [internId])
-  const result = await pool.query('DELETE FROM interns WHERE id = $1 RETURNING *', [internId])
-  return result.rows[0]
+  const db = await pool.connect()
+  try {
+    await db.query('BEGIN')
+    await db.query('DELETE FROM profiles WHERE intern_id = $1', [internId])
+    await db.query('DELETE FROM users WHERE intern_id = $1', [internId])
+    const result = await db.query('DELETE FROM interns WHERE id = $1 RETURNING *', [internId])
+    await db.query('COMMIT')
+    return result.rows[0]
+  } catch (error) {
+    await db.query('ROLLBACK')
+    throw error
+  } finally {
+    db.release()
+  }
 }
 
 module.exports = {
   getAllInterns,
+  getInternsByAdmin,
   getInternById,
   getInternsByBatch,
   getInternPhoto,

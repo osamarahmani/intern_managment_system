@@ -1,12 +1,44 @@
-const jwt = require('jsonwebtoken')
 const pool = require('../db/pool')
+const { verifyAccessToken } = require('../utils/tokens')
+const { readAuthCookie } = require('../utils/authCookie')
 
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers['authorization']
-  const token = authHeader && authHeader.split(' ')[1]
+  const token = readAuthCookie(req) || (authHeader && authHeader.split(' ')[1])
   if (!token) return res.status(401).json({ error: 'No token provided' })
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const decoded = verifyAccessToken(token)
+
+    if (decoded.role === 'intern') {
+      const result = await pool.query(
+        `SELECT u.token_version, u.role, i.status, i.is_archived, i.intern_status,
+                i.login_blocked, i.feedback_given_at
+         FROM users u JOIN interns i ON i.id = u.intern_id
+         WHERE u.id = $1 AND u.intern_id = $2`,
+        [decoded.id, decoded.intern_id]
+      )
+      const account = result.rows[0]
+      if (!account || account.role !== 'intern' || account.status !== 'approved' || account.is_archived ||
+          account.login_blocked || account.intern_status === 'discontinued') {
+        return res.status(403).json({ error: 'Account is no longer active' })
+      }
+      if (account.feedback_given_at && Date.now() > new Date(account.feedback_given_at).getTime() + 7 * 86400000) {
+        return res.status(403).json({ error: 'Internship access has expired' })
+      }
+      if ((decoded.token_version || 0) !== (account.token_version || 0)) return res.status(403).json({ error: 'Session expired' })
+    } else {
+      const result = await pool.query(
+        'SELECT role, must_change_password, token_version FROM profiles WHERE id = $1',
+        [decoded.id]
+      )
+      const account = result.rows[0]
+      if (!account || account.role !== decoded.role) return res.status(403).json({ error: 'Account is no longer active' })
+      if ((decoded.token_version || 0) !== (account.token_version || 0)) return res.status(403).json({ error: 'Session expired' })
+      decoded.must_change_password = account.role === 'admin' && Boolean(account.must_change_password)
+      if (decoded.must_change_password && req.originalUrl !== '/api/auth/change-password') {
+        return res.status(403).json({ error: 'Password change required' })
+      }
+    }
     req.user = decoded
     next()
   } catch (err) {
@@ -18,6 +50,7 @@ const verifyAdmin = (req, res, next) => {
   if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
     return res.status(403).json({ error: 'Admin access required' })
   }
+  if (req.user.must_change_password) return res.status(403).json({ error: 'Password change required' })
   next()
 }
 
@@ -29,11 +62,23 @@ const verifySuperAdmin = (req, res, next) => {
 }
 
 const verifyTeammateAccess = async (req, res, next) => {
-  if (req.user.role !== 'intern') {
-    return next()
-  }
   const viewerInternId = req.user.intern_id
   const targetInternId = req.params.internId || req.params.id
+
+  if (req.user.role === 'super_admin') return next()
+  if (req.user.role === 'admin') {
+    try {
+      const result = await pool.query(
+        `SELECT 1 FROM interns i JOIN batches b ON b.batch_number = i.batch_number
+         WHERE i.id = $1 AND b.created_by = $2`,
+        [targetInternId, req.user.id]
+      )
+      return result.rowCount ? next() : res.status(403).json({ error: 'Access denied' })
+    } catch (err) {
+      return res.status(500).json({ error: 'Unable to verify access' })
+    }
+  }
+  if (req.user.role !== 'intern') return res.status(403).json({ error: 'Access denied' })
 
   if (viewerInternId === targetInternId) {
     return next()
@@ -83,4 +128,3 @@ const verifyTeammateAccess = async (req, res, next) => {
 }
 
 module.exports = { verifyToken, verifyAdmin, verifySuperAdmin, verifyTeammateAccess }
-

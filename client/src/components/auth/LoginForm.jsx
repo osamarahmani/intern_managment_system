@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { loginAdmin, loginIntern } from '../../services/authService';
+import { loginAdmin, loginIntern, logout } from '../../services/authService';
 import LoadingSpinner from '../LoadingSpinner';
 
 const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword }) => {
@@ -48,9 +48,7 @@ const LoginForm = ({ role, isActive, onLogin, onRegisterClick, onForgotPassword 
 
         if (data.role !== role && !(role === 'admin' && data.role === 'super_admin')) {
           // Log out immediately if the role doesn't match the portal Gateway restriction
-          localStorage.removeItem('token');
-          localStorage.removeItem('role');
-          localStorage.removeItem('intern_id');
+          logout();
           throw new Error('Invalid credentials');
         }
 

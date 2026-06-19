@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import * as XLSX from 'xlsx'
+import { downloadWorkbook } from '../../utils/spreadsheetExport'
 import ApprovedInterns from '../admin/ApprovedInterns'
 import PendingApprovals from '../admin/PendingApprovals'
 import ArchivedInterns from '../admin/ArchivedInterns'
@@ -11,6 +11,7 @@ import { getAllInterns, approveIntern, rejectIntern, getInternsByBatch } from '.
 import { getProjectByInternId } from '../../services/projectService'
 import { getTasksByInternId } from '../../services/taskService'
 import useAutoRefresh from '../../hooks/useAutoRefresh'
+import { keepPreviousIfEqual } from '../../utils/stableState'
 
 const SuperAdminLayout = ({ onLogout }) => {
   const [activePage, setActivePage] = useState('dashboard') // 'dashboard' | 'pending' | 'admins' | 'archived'
@@ -80,15 +81,15 @@ const SuperAdminLayout = ({ onLogout }) => {
     if (summaryBatch) {
       fetchBatchSummary(summaryBatch.batch_number)
     }
-  }, [summaryBatch])
+  }, [summaryBatch?.batch_number])
 
   const fetchBatches = async () => {
     try {
       const data = await getBatches()
       if (data) {
-        setBatches(data)
-        setSummaryBatch(prev => prev ? (data.find(batch => batch.id === prev.id) || prev) : prev)
-        setViewBatch(prev => prev ? (data.find(batch => batch.id === prev.id) || prev) : prev)
+        setBatches(previous => keepPreviousIfEqual(previous, data))
+        setSummaryBatch(prev => prev ? keepPreviousIfEqual(prev, data.find(batch => batch.id === prev.id) || prev) : prev)
+        setViewBatch(prev => prev ? keepPreviousIfEqual(prev, data.find(batch => batch.id === prev.id) || prev) : prev)
         fetchInternStatusCounts()
       }
     } catch (err) {
@@ -107,7 +108,7 @@ const SuperAdminLayout = ({ onLogout }) => {
         else if (s === 'completed') counts.completed++
         else counts.active++
       })
-      setInternStatusCounts(counts)
+      setInternStatusCounts(previous => keepPreviousIfEqual(previous, counts))
     } catch (err) {
       console.error('Error fetching intern status counts:', err.message)
     }
@@ -116,7 +117,7 @@ const SuperAdminLayout = ({ onLogout }) => {
   const fetchAdmins = async () => {
     try {
       const data = await getAllAdmins()
-      if (data) setAdmins(data)
+      if (data) setAdmins(previous => keepPreviousIfEqual(previous, data))
     } catch (err) {
       console.error('Error fetching admins:', err.message)
     }
@@ -126,14 +127,19 @@ const SuperAdminLayout = ({ onLogout }) => {
     try {
       const allInterns = await getAllInterns()
       const pending = allInterns.filter((i) => i.status === 'pending')
-      setPendingInterns(pending || [])
+      setPendingInterns(previous => keepPreviousIfEqual(previous, pending || []))
     } catch (err) {
       console.error('Error fetching pending registrations:', err.message)
     }
   }
 
   // Synchronize batches, mentors, and approval notifications in the background.
-  useAutoRefresh(() => Promise.all([fetchBatches(), fetchAdmins(), fetchPending()]), 10000)
+  useAutoRefresh(() => Promise.all([
+    fetchBatches(),
+    fetchAdmins(),
+    fetchPending(),
+    summaryBatch ? fetchBatchSummary(summaryBatch.batch_number, true) : Promise.resolve()
+  ]), 10000)
 
   const handleExportAll = async () => {
     try {
@@ -165,25 +171,24 @@ const SuperAdminLayout = ({ onLogout }) => {
         'Task Title': t.title, 'Expected Date': t.expected_date,
         'Submission Date': t.submission_date || '—', 'Status': t.status
       }))
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(internSheet), 'Interns')
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(projectSheet), 'Projects')
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(taskSheet), 'Tasks')
-      XLSX.writeFile(wb, `All_Batches_Export_${new Date().toISOString().split('T')[0]}.xlsx`)
+      downloadWorkbook(
+        { Interns: internSheet, Projects: projectSheet, Tasks: taskSheet },
+        `All_Batches_Export_${new Date().toISOString().split('T')[0]}.xls`
+      )
     } catch (err) {
       alert('Export failed: ' + err.message)
     }
   }
 
-  const fetchBatchSummary = async (batchNum) => {
-    setSummaryLoading(true)
+  const fetchBatchSummary = async (batchNum, silent = false) => {
+    if (!silent) setSummaryLoading(true)
     try {
       const batchInterns = await getInternsByBatch(batchNum)
       const safeInterns = batchInterns || []
       const internIds = safeInterns.map((i) => i.id)
 
       if (internIds.length === 0) {
-        setSummaryStats({
+        setSummaryStats(previous => keepPreviousIfEqual(previous, {
           totalInterns: 0,
           internsWithProject: 0,
           internsWithoutProject: 0,
@@ -197,7 +202,7 @@ const SuperAdminLayout = ({ onLogout }) => {
           topPerformer: null,
           topPerformerCount: 0,
           hasInterns: false
-        })
+        }))
         return
       }
 
@@ -248,7 +253,7 @@ const SuperAdminLayout = ({ onLogout }) => {
       const topPerformer = safeInterns.find((i) => i.id === topInternId)
       const topPerformerCount = completedByIntern[topInternId] || 0
 
-      setSummaryStats({
+      setSummaryStats(previous => keepPreviousIfEqual(previous, {
         totalInterns,
         internsWithProject,
         internsWithoutProject,
@@ -262,11 +267,11 @@ const SuperAdminLayout = ({ onLogout }) => {
         topPerformer,
         topPerformerCount,
         hasInterns: true
-      })
+      }))
     } catch (err) {
       console.error('Error fetching batch summary:', err.message)
     } finally {
-      setSummaryLoading(false)
+      if (!silent) setSummaryLoading(false)
     }
   }
 

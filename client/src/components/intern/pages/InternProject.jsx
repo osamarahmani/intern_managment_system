@@ -1,3 +1,5 @@
+import { safeExternalUrl } from '../../../utils/safeUrl'
+
 const parseDescriptionSections = (text) => {
   if (!text) return []
   // Split on patterns like "Word Word:" that look like section headers (2-5 word title followed by colon)
@@ -94,9 +96,9 @@ const InternProject = ({ project }) => {
       <hr className="project-card-divider" style={{ border: 'none', borderTop: '1px solid #EEEEEE', margin: '16px 0' }} />
 
       <div className="project-links-row" style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
-        {project.git_repo_link ? (
+        {safeExternalUrl(project.git_repo_link) ? (
           <a 
-            href={project.git_repo_link} 
+            href={safeExternalUrl(project.git_repo_link)}
             target="_blank" 
             rel="noopener noreferrer" 
             className="btn-git-repo"
@@ -117,9 +119,9 @@ const InternProject = ({ project }) => {
           </button>
         )}
 
-        {project.live_project_link ? (
+        {safeExternalUrl(project.live_project_link) ? (
           <a 
-            href={project.live_project_link} 
+            href={safeExternalUrl(project.live_project_link)}
             target="_blank" 
             rel="noopener noreferrer" 
             className="btn-live-project"

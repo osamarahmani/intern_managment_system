@@ -43,8 +43,8 @@ const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
 
     if (Object.keys(errors).length > 0) {
       setLocalErrors(errors);
-      if (!formData.password || formData.password.length < 6) {
-        setPasswordError('Password must be at least 6 characters.');
+      if (!formData.password || formData.password.length < 12) {
+        setPasswordError('Password must be at least 12 characters.');
       } else if (formData.password !== formData.confirmPassword) {
         setPasswordError('Passwords do not match.');
       } else {
@@ -55,8 +55,8 @@ const ProgramDetails = ({ formData, onUpdate, onNext, onBack }) => {
 
     setLocalErrors({});
 
-    if (!formData.password || formData.password.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
+    if (!formData.password || formData.password.length < 12) {
+      setPasswordError('Password must be at least 12 characters.');
       return;
     }
     if (formData.password !== formData.confirmPassword) {

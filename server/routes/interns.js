@@ -1,9 +1,11 @@
 const express = require('express')
 const internQueries = require('../db/queries/interns')
 const { verifyToken, verifyAdmin, verifyTeammateAccess } = require('../middleware/auth')
+const { requireInternManagement } = require('../middleware/authorization')
 const upload = require('../middleware/upload')
 const pool = require('../db/pool')
 const logger = require('../utils/logger')
+const { isValidImage } = require('../middleware/security')
 const router = express.Router()
 
 // GET /api/interns — admin gets all, intern gets own
@@ -11,8 +13,10 @@ router.get('/', verifyToken, async (req, res) => {
   logger.info('interns.getAll', 'Fetching interns', { role: req.user.role, intern_id: req.user.intern_id })
   try {
     let interns
-    if (req.user.role === 'admin' || req.user.role === 'super_admin') {
+    if (req.user.role === 'super_admin') {
       interns = await internQueries.getAllInterns()
+    } else if (req.user.role === 'admin') {
+      interns = await internQueries.getInternsByAdmin(req.user.id)
     } else {
       const intern = await internQueries.getInternById(req.user.intern_id)
       interns = intern ? [intern] : []
@@ -21,7 +25,7 @@ router.get('/', verifyToken, async (req, res) => {
     res.json(interns)
   } catch (err) {
     logger.error('interns.getAll', 'Failed to fetch interns', { error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -30,12 +34,25 @@ router.get('/batch/:batchNumber', verifyToken, async (req, res) => {
   const { batchNumber } = req.params
   logger.info('interns.getByBatch', 'Fetching interns by batch', { batchNumber })
   try {
-    const interns = await internQueries.getInternsByBatch(batchNumber)
+    if (req.user.role === 'intern') {
+      const own = await internQueries.getInternById(req.user.intern_id)
+      if (!own || own.batch_number !== batchNumber) return res.status(403).json({ error: 'Access denied' })
+    } else if (req.user.role === 'admin') {
+      const owned = await pool.query('SELECT 1 FROM batches WHERE batch_number = $1 AND created_by = $2', [batchNumber, req.user.id])
+      if (!owned.rowCount) return res.status(403).json({ error: 'Access denied' })
+    }
+    let interns = await internQueries.getInternsByBatch(batchNumber)
+    if (req.user.role === 'intern') {
+      const batchResult = await pool.query('SELECT visibility_mode FROM batches WHERE batch_number = $1', [batchNumber])
+      const mode = batchResult.rows[0]?.visibility_mode || 'intern_choice'
+      if (mode === 'private') interns = interns.filter(i => i.id === req.user.intern_id)
+      if (mode === 'intern_choice') interns = interns.filter(i => i.id === req.user.intern_id || i.profile_visible === true)
+    }
     logger.success('interns.getByBatch', 'Fetched interns by batch successfully', { batchNumber, count: interns.length })
     res.json(interns)
   } catch (err) {
     logger.error('interns.getByBatch', 'Failed to fetch interns by batch', { batchNumber, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -43,12 +60,14 @@ router.get('/batch/:batchNumber', verifyToken, async (req, res) => {
 router.get('/archived', verifyToken, verifyAdmin, async (req, res) => {
   logger.info('interns.getArchived', 'Fetching archived interns')
   try {
-    const archived = await internQueries.getArchivedInterns()
+    const archived = req.user.role === 'super_admin'
+      ? await internQueries.getArchivedInterns()
+      : await internQueries.getInternsByAdmin(req.user.id, true)
     logger.success('interns.getArchived', 'Fetched archived interns successfully', { count: archived.length })
     res.json(archived)
   } catch (err) {
     logger.error('interns.getArchived', 'Failed to fetch archived interns', { error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -66,12 +85,12 @@ router.get('/:id', verifyToken, verifyTeammateAccess, async (req, res) => {
     res.json(intern)
   } catch (err) {
     logger.error('interns.getById', 'Failed to fetch intern by ID', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-// GET /api/interns/:id/photo — serves photo as binary image stream (public)
-router.get('/:id/photo', async (req, res) => {
+// GET /api/interns/:id/photo — serves an authorized photo stream
+router.get('/:id/photo', verifyToken, verifyTeammateAccess, async (req, res) => {
   const { id } = req.params
   logger.info('interns.getPhoto', 'Fetching intern photo', { id })
   try {
@@ -96,17 +115,18 @@ router.get('/:id/photo', async (req, res) => {
     res.writeHead(200, {
       'Content-Type': row.photo_mime_type || 'image/jpeg',
       'Content-Length': photoBuffer.length,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+      'Cache-Control': 'private, no-store, no-cache, must-revalidate, max-age=0',
+      'X-Content-Type-Options': 'nosniff'
     })
     res.end(photoBuffer)
   } catch (err) {
     logger.error('interns.getPhoto', 'Photo fetch failed', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PUT /api/interns/:id — update intern details
-router.put('/:id', verifyToken, async (req, res) => {
+router.put('/:id', verifyToken, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.update', 'Updating intern details', { id, role: req.user.role })
   try {
@@ -116,6 +136,9 @@ router.put('/:id', verifyToken, async (req, res) => {
       if (id !== req.user.intern_id) {
         logger.warn('interns.update', 'Access denied: cannot modify other profiles', { id, intern_id: req.user.intern_id })
         return res.status(403).json({ error: 'Access denied: cannot modify other profiles' })
+      }
+      if (typeof req.body.profile_visible !== 'boolean') {
+        return res.status(400).json({ error: 'Profile visibility must be true or false' })
       }
       const current = await internQueries.getInternById(id)
       if (!current) {
@@ -139,6 +162,20 @@ router.put('/:id', verifyToken, async (req, res) => {
         logger.warn('interns.update', 'Required fields are missing', { id })
         return res.status(400).json({ error: 'Required fields are missing' })
       }
+      if (req.user.role === 'admin') {
+        const targetBatch = await pool.query(
+          'SELECT 1 FROM batches WHERE batch_number = $1 AND created_by = $2',
+          [batch_number, req.user.id]
+        )
+        if (!targetBatch.rowCount) return res.status(403).json({ error: 'Cannot move an intern to a batch you do not manage' })
+      }
+      if (status && !['pending', 'approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Invalid intern status' })
+      if (name.length > 120 || college_name.length > 200 || dept.length > 120 || mail.length > 254 || number.length > 40) {
+        return res.status(400).json({ error: 'One or more fields are too long' })
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(starting_date) || !/^\d{4}-\d{2}-\d{2}$/.test(ending_date) || ending_date < starting_date) {
+        return res.status(400).json({ error: 'Enter a valid internship date range' })
+      }
 
       merged = {
         name, college_name, dept, year, sem, mail, number,
@@ -151,7 +188,7 @@ router.put('/:id', verifyToken, async (req, res) => {
     res.json({ success: true, intern: updated })
   } catch (err) {
     logger.error('interns.update', 'Error updating intern', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -160,6 +197,7 @@ router.put(
   '/:id/photo',
   verifyToken,
   verifyAdmin,
+  requireInternManagement('id'),
   upload.single('photo'),
   async (req, res) => {
     const { id } = req.params
@@ -169,18 +207,19 @@ router.put(
         logger.warn('interns.updatePhoto', 'No file uploaded', { id })
         return res.status(400).json({ error: 'No file uploaded' })
       }
+      if (!isValidImage(req.file)) return res.status(400).json({ error: 'Invalid image file' })
       await internQueries.updateInternPhoto(id, req.file.buffer, req.file.mimetype)
       logger.success('interns.updatePhoto', 'Photo updated successfully', { id })
       res.json({ success: true, message: 'Photo updated successfully' })
     } catch (err) {
       logger.error('interns.updatePhoto', 'Photo update error', { id, error: err.message })
-      res.status(500).json({ error: err.message })
+      res.status(500).json({ error: 'Internal server error' })
     }
   }
 )
 
 // PUT /api/interns/:id/approve — admin approves intern status
-router.put('/:id/approve', verifyToken, verifyAdmin, async (req, res) => {
+router.put('/:id/approve', verifyToken, verifyAdmin, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.approve', 'Approving intern', { id })
   try {
@@ -193,12 +232,12 @@ router.put('/:id/approve', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, intern: updated })
   } catch (err) {
     logger.error('interns.approve', 'Approval error', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // DELETE /api/interns/:id — admin rejects/deletes intern
-router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
+router.delete('/:id', verifyToken, verifyAdmin, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.delete', 'Deleting intern (reject/delete)', { id })
   try {
@@ -211,12 +250,12 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, message: 'Intern deleted' })
   } catch (err) {
     logger.error('interns.delete', 'Delete intern error', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PATCH /api/interns/:id/archive — protected by verifyToken + verifyAdmin
-router.patch('/:id/archive', verifyToken, verifyAdmin, async (req, res) => {
+router.patch('/:id/archive', verifyToken, verifyAdmin, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.archive', 'Archiving intern', { id })
   try {
@@ -229,12 +268,12 @@ router.patch('/:id/archive', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, intern: updated })
   } catch (err) {
     logger.error('interns.archive', 'Archive intern error', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PATCH /api/interns/:id/restore — protected by verifyToken + verifyAdmin
-router.patch('/:id/restore', verifyToken, verifyAdmin, async (req, res) => {
+router.patch('/:id/restore', verifyToken, verifyAdmin, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.restore', 'Restoring intern', { id })
   try {
@@ -247,12 +286,12 @@ router.patch('/:id/restore', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, intern: updated })
   } catch (err) {
     logger.error('interns.restore', 'Restore intern error', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // DELETE /api/interns/:id/permanent — protected by verifyToken + verifyAdmin
-router.delete('/:id/permanent', verifyToken, verifyAdmin, async (req, res) => {
+router.delete('/:id/permanent', verifyToken, verifyAdmin, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.deletePermanent', 'Permanently deleting intern', { id })
   try {
@@ -265,12 +304,12 @@ router.delete('/:id/permanent', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, message: 'Intern permanently deleted' })
   } catch (err) {
     logger.error('interns.deletePermanent', 'Permanent delete intern error', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PUT /api/interns/:id/complete — admin marks internship as completed and gives feedback
-router.put('/:id/complete', verifyToken, verifyAdmin, async (req, res) => {
+router.put('/:id/complete', verifyToken, verifyAdmin, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.complete', 'Marking internship as completed', { id })
   try {
@@ -286,30 +325,41 @@ router.put('/:id/complete', verifyToken, verifyAdmin, async (req, res) => {
 
     const adminProfileId = req.user.profileId || req.user.id
 
-    // Mark intern as completed and set feedback_given_at
-    await pool.query(
-      `UPDATE interns SET intern_status = 'completed', feedback_given_at = NOW() WHERE id = $1`,
-      [id]
-    )
-
-    // Insert or update feedback
-    await pool.query(
-      `INSERT INTO intern_feedback (intern_id, given_by, rating, feedback)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (intern_id) DO UPDATE SET rating = $3, feedback = $4, given_by = $2, given_at = NOW()`,
-      [id, adminProfileId, rating, feedback]
-    )
+    const db = await pool.connect()
+    try {
+      await db.query('BEGIN')
+      const updated = await db.query(
+        `UPDATE interns SET intern_status = 'completed', feedback_given_at = NOW() WHERE id = $1 RETURNING id`,
+        [id]
+      )
+      if (!updated.rowCount) {
+        await db.query('ROLLBACK')
+        return res.status(404).json({ error: 'Intern not found' })
+      }
+      await db.query(
+        `INSERT INTO intern_feedback (intern_id, given_by, rating, feedback)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (intern_id) DO UPDATE SET rating = $3, feedback = $4, given_by = $2, given_at = NOW()`,
+        [id, adminProfileId, rating, feedback.trim().slice(0, 10000)]
+      )
+      await db.query('COMMIT')
+    } catch (error) {
+      await db.query('ROLLBACK')
+      throw error
+    } finally {
+      db.release()
+    }
 
     logger.success('interns.complete', 'Internship marked as completed with feedback', { id })
     res.json({ success: true, message: 'Internship marked as completed with feedback' })
   } catch (err) {
     logger.error('interns.complete', 'Complete internship error', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PUT /api/interns/:id/discontinue — admin marks intern as discontinued with reason
-router.put('/:id/discontinue', verifyToken, verifyAdmin, async (req, res) => {
+router.put('/:id/discontinue', verifyToken, verifyAdmin, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.discontinue', 'Marking intern as discontinued', { id })
   try {
@@ -328,12 +378,12 @@ router.put('/:id/discontinue', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, message: 'Intern marked as discontinued' })
   } catch (err) {
     logger.error('interns.discontinue', 'Discontinue intern error', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // GET /api/interns/:id/feedback — get feedback for an intern (intern or admin)
-router.get('/:id/feedback', verifyToken, async (req, res) => {
+router.get('/:id/feedback', verifyToken, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.getFeedback', 'Fetching feedback for intern', { id })
   try {
@@ -352,12 +402,12 @@ router.get('/:id/feedback', verifyToken, async (req, res) => {
     res.json(result.rows[0])
   } catch (err) {
     logger.error('interns.getFeedback', 'Failed to fetch feedback', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PUT /api/interns/:id/revoke-discontinue — admin restores a discontinued intern
-router.put('/:id/revoke-discontinue', verifyToken, verifyAdmin, async (req, res) => {
+router.put('/:id/revoke-discontinue', verifyToken, verifyAdmin, requireInternManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('interns.revokeDiscontinue', 'Revoking discontinue status', { id })
   try {
@@ -369,7 +419,7 @@ router.put('/:id/revoke-discontinue', verifyToken, verifyAdmin, async (req, res)
     res.json({ success: true, message: 'Discontinue revoked successfully' })
   } catch (err) {
     logger.error('interns.revokeDiscontinue', 'Failed to revoke discontinue status', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 

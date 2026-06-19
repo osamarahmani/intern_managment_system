@@ -6,6 +6,7 @@ import ArchivedBatches from './ArchivedBatches';
 import { getAllInterns, approveIntern, rejectIntern } from '../../services/internService';
 import './AdminLayout.css';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
+import { keepPreviousIfEqual } from '../../utils/stableState';
 
 const AdminLayout = ({ onLogout }) => {
   const [pendingInterns, setPendingInterns] = useState([]);
@@ -36,7 +37,7 @@ const AdminLayout = ({ onLogout }) => {
     try {
       const allInterns = await getAllInterns();
       const pending = allInterns.filter((i) => i.status === 'pending');
-      setPendingInterns(pending || []);
+      setPendingInterns(previous => keepPreviousIfEqual(previous, pending || []));
     } catch (err) {
       console.error('Error fetching pending registrations:', err.message);
     }

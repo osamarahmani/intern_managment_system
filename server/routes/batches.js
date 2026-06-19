@@ -1,6 +1,7 @@
 const express = require('express')
 const batchQueries = require('../db/queries/batches')
 const { verifyToken, verifyAdmin } = require('../middleware/auth')
+const { requireBatchManagement } = require('../middleware/authorization')
 const pool = require('../db/pool')
 const logger = require('../utils/logger')
 const router = express.Router()
@@ -15,14 +16,20 @@ router.get('/', verifyToken, async (req, res) => {
     } else if (req.user.role === 'admin') {
       batches = await batchQueries.getBatchesByAdmin(req.user.id)
     } else {
-      // Default to returning all batches or empty/role-specific fallback
-      batches = await batchQueries.getAllBatches()
+      const own = await pool.query(
+        `SELECT b.id, b.batch_number, b.is_active, b.visibility_mode, b.is_archived,
+                b.created_at, b.archived_at
+         FROM batches b JOIN interns i ON i.batch_number = b.batch_number
+         WHERE i.id = $1`,
+        [req.user.intern_id]
+      )
+      batches = own.rows
     }
     logger.success('batches.getAll', 'Fetched batches successfully', { count: batches.length })
     res.json(batches)
   } catch (err) {
     logger.error('batches.getAll', 'Failed to fetch batches', { error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -38,7 +45,7 @@ router.get('/archived', verifyToken, verifyAdmin, async (req, res) => {
     res.json(archived)
   } catch (err) {
     logger.error('batches.getArchived', 'Failed to fetch archived batches', { error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -51,6 +58,9 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     logger.warn('batches.create', 'Batch number and registration key are required', { batch_number })
     return res.status(400).json({ error: 'Batch number and registration key are required' })
   }
+  if (batch_number.trim().length > 100 || registration_key.trim().length < 12 || registration_key.trim().length > 200) {
+    return res.status(400).json({ error: 'Batch number must be under 100 characters and registration key at least 12 characters' })
+  }
 
   try {
     const batch = await batchQueries.createBatch(
@@ -62,16 +72,20 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     res.json(batch)
   } catch (err) {
     logger.error('batches.create', 'Failed to create batch', { batch_number, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PUT /api/batches/:id — Update batch status/visibility/mentor (Admin only)
-router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
+router.put('/:id', verifyToken, verifyAdmin, requireBatchManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('batches.update', 'Updating batch', { id })
   try {
     const { is_active, visibility_mode, created_by } = req.body
+    if (visibility_mode && !['public', 'private', 'intern_choice'].includes(visibility_mode)) {
+      return res.status(400).json({ error: 'Invalid visibility mode' })
+    }
+    if (created_by && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Only a super admin can reassign a batch' })
     const result = await pool.query(
       `UPDATE batches SET
         is_active = COALESCE($1, is_active),
@@ -88,12 +102,12 @@ router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
     res.json(result.rows[0])
   } catch (err) {
     logger.error('batches.update', 'Failed to update batch', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PATCH /api/batches/:id/archive - Archive batch (Admin only)
-router.patch('/:id/archive', verifyToken, verifyAdmin, async (req, res) => {
+router.patch('/:id/archive', verifyToken, verifyAdmin, requireBatchManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('batches.archive', 'Archiving batch', { id })
   try {
@@ -106,12 +120,12 @@ router.patch('/:id/archive', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, batch: archived })
   } catch (err) {
     logger.error('batches.archive', 'Error archiving batch', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // PATCH /api/batches/:id/restore - Restore archived batch (Admin only)
-router.patch('/:id/restore', verifyToken, verifyAdmin, async (req, res) => {
+router.patch('/:id/restore', verifyToken, verifyAdmin, requireBatchManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('batches.restore', 'Restoring batch', { id })
   try {
@@ -124,12 +138,12 @@ router.patch('/:id/restore', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, batch: restored })
   } catch (err) {
     logger.error('batches.restore', 'Error restoring batch', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // DELETE /api/batches/:id/permanent - Permanently delete archived batch
-router.delete('/:id/permanent', verifyToken, verifyAdmin, async (req, res) => {
+router.delete('/:id/permanent', verifyToken, verifyAdmin, requireBatchManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('batches.deletePermanent', 'Permanently deleting batch', { id })
   try {
@@ -142,12 +156,12 @@ router.delete('/:id/permanent', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, message: 'Batch permanently deleted' })
   } catch (err) {
     logger.error('batches.deletePermanent', 'Error permanently deleting batch', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // DELETE /api/batches/:id — Delete batch (Admin only)
-router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
+router.delete('/:id', verifyToken, verifyAdmin, requireBatchManagement('id'), async (req, res) => {
   const { id } = req.params
   logger.info('batches.delete', 'Deleting batch', { id })
   try {
@@ -160,7 +174,7 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     res.json({ success: true, message: 'Batch deleted' })
   } catch (err) {
     logger.error('batches.delete', 'Error deleting batch', { id, error: err.message })
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 

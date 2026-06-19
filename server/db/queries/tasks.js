@@ -42,16 +42,26 @@ const deleteTask = async (id) => {
 }
 
 const saveAITaskDrafts = async (internId, tasks) => {
+  const db = await pool.connect()
   const inserted = []
-  for (const t of tasks) {
-    const result = await pool.query(
-      `INSERT INTO ai_task_drafts (intern_id, title, description, deliverables, expected_date)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [internId, t.title, t.description || '', t.deliverables || [], t.expected_date]
-    )
-    inserted.push(result.rows[0])
+  try {
+    await db.query('BEGIN')
+    for (const t of tasks) {
+      const result = await db.query(
+        `INSERT INTO ai_task_drafts (intern_id, title, description, deliverables, expected_date)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [internId, t.title, t.description || '', t.deliverables || [], t.expected_date]
+      )
+      inserted.push(result.rows[0])
+    }
+    await db.query('COMMIT')
+    return inserted
+  } catch (error) {
+    await db.query('ROLLBACK')
+    throw error
+  } finally {
+    db.release()
   }
-  return inserted
 }
 
 const getAITaskDrafts = async (internId) => {
@@ -62,12 +72,47 @@ const getAITaskDrafts = async (internId) => {
   return result.rows
 }
 
+const getAITaskDraftById = async (draftId) => {
+  const result = await pool.query('SELECT * FROM ai_task_drafts WHERE id = $1', [draftId])
+  return result.rows[0] || null
+}
+
 const markDraftAssigned = async (draftId, taskId) => {
   const result = await pool.query(
     `UPDATE ai_task_drafts SET is_assigned = true, assigned_task_id = $1 WHERE id = $2 RETURNING *`,
     [taskId, draftId]
   )
   return result.rows[0]
+}
+
+const assignAITaskDraft = async (draftId, internId) => {
+  const db = await pool.connect()
+  try {
+    await db.query('BEGIN')
+    const draftResult = await db.query(
+      'SELECT * FROM ai_task_drafts WHERE id = $1 AND intern_id = $2 FOR UPDATE',
+      [draftId, internId]
+    )
+    const draft = draftResult.rows[0]
+    if (!draft) { await db.query('ROLLBACK'); return { status: 'not_found' } }
+    if (draft.is_assigned) { await db.query('ROLLBACK'); return { status: 'assigned' } }
+    const taskResult = await db.query(
+      `INSERT INTO tasks (intern_id, title, description, expected_date, upcoming_task, deliverables, is_ai_generated)
+       VALUES ($1, $2, $3, $4, false, $5, true) RETURNING *`,
+      [internId, draft.title, draft.description, draft.expected_date, draft.deliverables || []]
+    )
+    await db.query(
+      'UPDATE ai_task_drafts SET is_assigned = true, assigned_task_id = $1 WHERE id = $2',
+      [taskResult.rows[0].id, draftId]
+    )
+    await db.query('COMMIT')
+    return { status: 'ok', task: taskResult.rows[0] }
+  } catch (error) {
+    await db.query('ROLLBACK')
+    throw error
+  } finally {
+    db.release()
+  }
 }
 
 const deleteAITaskDrafts = async (internId) => {
@@ -91,8 +136,9 @@ module.exports = {
   deleteTask,
   saveAITaskDrafts,
   getAITaskDrafts,
+  getAITaskDraftById,
   markDraftAssigned,
+  assignAITaskDraft,
   deleteAITaskDrafts,
   updateAITaskDraft
 }
-

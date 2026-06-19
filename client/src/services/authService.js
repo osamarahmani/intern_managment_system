@@ -1,8 +1,16 @@
 import apiClient from '../utils/apiClient'
 
-export const getToken = () => localStorage.getItem('token')
-export const getRole = () => localStorage.getItem('role')
-export const getInternId = () => localStorage.getItem('intern_id')
+const authStorage = sessionStorage
+
+const persistSession = (data) => {
+  authStorage.setItem('token', data.token)
+  authStorage.setItem('role', data.role)
+  authStorage.setItem('intern_id', data.intern_id || '')
+}
+
+export const getToken = () => authStorage.getItem('token')
+export const getRole = () => authStorage.getItem('role')
+export const getInternId = () => authStorage.getItem('intern_id')
 
 let cachedLoginResult = null;
 
@@ -11,9 +19,7 @@ export const loginAdmin = async (email, password) => {
     method: 'POST',
     body: JSON.stringify({ email, password })
   })
-  localStorage.setItem('token', data.token)
-  localStorage.setItem('role', data.role)
-  localStorage.setItem('intern_id', data.intern_id || '')
+  persistSession(data)
   cachedLoginResult = data
   return data
 }
@@ -23,9 +29,7 @@ export const loginIntern = async (email, password) => {
     method: 'POST',
     body: JSON.stringify({ email, password })
   })
-  localStorage.setItem('token', data.token)
-  localStorage.setItem('role', data.role)
-  localStorage.setItem('intern_id', data.intern_id || '')
+  persistSession(data)
   cachedLoginResult = data
   return data
 }
@@ -40,16 +44,19 @@ export const login = async (email, password) => {
     method: 'POST',
     body: JSON.stringify({ email, password })
   })
-  localStorage.setItem('token', data.token)
-  localStorage.setItem('role', data.role)
-  localStorage.setItem('intern_id', data.intern_id || '')
+  persistSession(data)
   return data
 }
 
 export const logout = () => {
+  const request = apiClient('/api/auth/logout', { method: 'POST' }).catch(() => {})
+  authStorage.removeItem('token')
+  authStorage.removeItem('role')
+  authStorage.removeItem('intern_id')
   localStorage.removeItem('token')
   localStorage.removeItem('role')
   localStorage.removeItem('intern_id')
+  return request
 }
 
 export const register = async (formDataToSend) => {
@@ -60,8 +67,10 @@ export const register = async (formDataToSend) => {
 }
 
 export const changePassword = async (newPassword, token = getToken()) => {
-  return apiClient('/api/auth/change-password', {
+  const data = await apiClient('/api/auth/change-password', {
     method: 'POST',
     body: JSON.stringify({ newPassword })
   }, token)
+  if (data.token) persistSession(data)
+  return data
 }

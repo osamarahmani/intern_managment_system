@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import apiClient from '../../utils/apiClient'
 
-const ResetPassword = ({ onBack }) => {
-  const [token, setToken] = useState('')
+const ResetPassword = ({ token, onBack }) => {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showNew, setShowNew] = useState(false)
@@ -11,11 +10,6 @@ const ResetPassword = ({ onBack }) => {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get('token')
-    if (t) setToken(t)
-  }, [])
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -23,8 +17,8 @@ const ResetPassword = ({ onBack }) => {
       setError('Both fields are required.')
       return
     }
-    if (newPassword.length < 6) {
-      setError('Password must be at least 8 characters.')
+    if (newPassword.length < 12) {
+      setError('Password must be at least 12 characters.')
       return
     }
     if (newPassword !== confirmPassword) {
