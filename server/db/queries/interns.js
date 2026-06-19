@@ -2,14 +2,14 @@ const pool = require('../pool')
 
 const getAllInterns = async () => {
   const result = await pool.query(
-    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at FROM interns WHERE is_archived = false OR is_archived IS NULL ORDER BY created_at DESC'
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE is_archived = false OR is_archived IS NULL ORDER BY created_at DESC'
   )
   return result.rows
 }
 
 const getInternById = async (id) => {
   const result = await pool.query(
-    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at FROM interns WHERE id = $1',
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE id = $1',
     [id]
   )
   return result.rows[0]
@@ -17,7 +17,7 @@ const getInternById = async (id) => {
 
 const getInternsByBatch = async (batchNumber, status = 'approved') => {
   const result = await pool.query(
-    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at FROM interns WHERE batch_number = $1 AND status = $2 AND (is_archived = false OR is_archived IS NULL) ORDER BY created_at DESC',
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE batch_number = $1 AND status = $2 AND (is_archived = false OR is_archived IS NULL) ORDER BY created_at DESC',
     [batchNumber, status]
   )
   return result.rows
@@ -134,7 +134,7 @@ const restoreIntern = async (internId) => {
 
 const getArchivedInterns = async () => {
   const result = await pool.query(
-    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at FROM interns WHERE is_archived = true ORDER BY archived_at DESC'
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE is_archived = true ORDER BY archived_at DESC'
   )
   return result.rows
 }

@@ -1,3 +1,23 @@
+const parseDescriptionSections = (text) => {
+  if (!text) return []
+  // Split on patterns like "Word Word:" that look like section headers (2-5 word title followed by colon)
+  const sectionRegex = /([A-Z][A-Za-z0-9&'/() ]{2,50}:)(?=\s)/g
+  const parts = text.split(sectionRegex).filter(Boolean)
+  const sections = []
+  let i = 0
+  // If text doesn't start with a header, treat the leading chunk as intro text
+  if (parts.length && !parts[0].endsWith(':')) {
+    sections.push({ heading: null, content: parts[0].trim() })
+    i = 1
+  }
+  for (; i < parts.length; i += 2) {
+    const heading = parts[i]?.replace(':', '').trim()
+    const content = parts[i + 1]?.trim() || ''
+    if (heading) sections.push({ heading, content })
+  }
+  return sections.length ? sections : [{ heading: null, content: text }]
+}
+
 const InternProject = ({ project }) => {
   // Empty state centered in the full height
   if (!project || !project.title) {
@@ -37,7 +57,38 @@ const InternProject = ({ project }) => {
 
       <div style={{ marginBottom: '24px', flex: 1 }}>
         <h3 className="project-section-label" style={{ fontSize: '12px', color: '#9E9E9E', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Description</h3>
-        <p className="project-section-value" style={{ fontSize: '14px', color: '#212121', lineHeight: '1.7', margin: 0 }}>{project.description || 'No description provided.'}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {parseDescriptionSections(project.description || 'No description provided.').map((section, idx) => (
+            <div key={idx}>
+              {section.heading && (
+                <h4 style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  color: '#3D35C4',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span style={{
+                    width: '6px', height: '6px', borderRadius: '50%',
+                    background: '#3D35C4', display: 'inline-block', flexShrink: 0
+                  }} />
+                  {section.heading}
+                </h4>
+              )}
+              <p style={{
+                margin: 0,
+                fontSize: '13.5px',
+                color: '#444',
+                lineHeight: 1.8,
+                paddingLeft: section.heading ? '14px' : 0
+              }}>
+                {section.content}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <hr className="project-card-divider" style={{ border: 'none', borderTop: '1px solid #EEEEEE', margin: '16px 0' }} />

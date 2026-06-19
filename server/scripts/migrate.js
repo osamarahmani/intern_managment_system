@@ -102,6 +102,41 @@ const runMigration = async () => {
       );
     `)
 
+    // Create subtasks table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subtasks (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        task_id uuid NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        description text DEFAULT '',
+        expected_date date,
+        status text DEFAULT 'not_started' CHECK (status IN ('not_started','in_progress','completed')),
+        created_at timestamptz DEFAULT now()
+      )
+    `)
+
+    // Create task_notes table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.task_notes (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        task_id uuid NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
+        note text NOT NULL,
+        created_at timestamptz DEFAULT now()
+      )
+    `)
+
+    // intern_feedback table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.intern_feedback (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        intern_id uuid NOT NULL UNIQUE REFERENCES public.interns(id) ON DELETE CASCADE,
+        given_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+        rating integer NOT NULL CHECK (rating BETWEEN 1 AND 5),
+        feedback text NOT NULL,
+        given_at timestamptz DEFAULT now()
+      )
+    `)
+
     // 7. password_reset_tokens table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.password_reset_tokens (
@@ -110,6 +145,21 @@ const runMigration = async () => {
         token text NOT NULL UNIQUE,
         expires_at timestamptz NOT NULL,
         used boolean DEFAULT false,
+        created_at timestamptz DEFAULT now()
+      );
+    `)
+
+    // CREATE TABLE IF NOT EXISTS ai_task_drafts
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.ai_task_drafts (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        intern_id uuid NOT NULL REFERENCES public.interns(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        description text DEFAULT '',
+        deliverables text[] DEFAULT '{}',
+        expected_date date,
+        is_assigned boolean DEFAULT false,
+        assigned_task_id uuid REFERENCES public.tasks(id) ON DELETE SET NULL,
         created_at timestamptz DEFAULT now()
       );
     `)
@@ -124,7 +174,14 @@ const runMigration = async () => {
       "ALTER TABLE public.batches ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;",
       "ALTER TABLE public.batches ADD COLUMN IF NOT EXISTS archived_at timestamptz;",
       "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;",
-      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS archived_at timestamptz;"
+      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS archived_at timestamptz;",
+      "ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS description text DEFAULT '';",
+      "ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS deliverables text[] DEFAULT '{}';",
+      "ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS is_ai_generated boolean DEFAULT false;",
+      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS intern_status text DEFAULT 'active' CHECK (intern_status IN ('active','completed','discontinued'));",
+      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS discontinued_reason text;",
+      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS feedback_given_at timestamptz;",
+      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS login_blocked boolean DEFAULT false;"
     ]
 
     for (const addCol of colAdditions) {

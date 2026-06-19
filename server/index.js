@@ -21,6 +21,18 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
+const logger = require('./utils/logger')
+
+app.use((req, res, next) => {
+  const start = Date.now()
+  res.on('finish', () => {
+    const duration = Date.now() - start
+    const level = res.statusCode >= 500 ? 'ERROR' : res.statusCode >= 400 ? 'WARN' : 'SUCCESS'
+    logger[level.toLowerCase()](req.method, `${req.originalUrl} → ${res.statusCode}`, { duration: `${duration}ms`, ip: req.ip })
+  })
+  next()
+})
+
 app.use('/api/auth', authRoutes)
 app.use('/api/interns', internRoutes)
 app.use('/api/batches', batchRoutes)

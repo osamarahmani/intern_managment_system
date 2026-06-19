@@ -62,3 +62,8 @@ export const permanentDeleteIntern = async (id, token = getToken()) => {
     method: 'DELETE'
   }, token)
 }
+
+export const revokeDiscontinue = async (internId, token = getToken()) => {
+  return await apiClient(`/api/interns/${internId}/revoke-discontinue`, { method: 'PUT' }, token)
+}
+
