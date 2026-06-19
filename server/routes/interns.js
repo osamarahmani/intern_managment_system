@@ -2,10 +2,13 @@ const express = require('express')
 const internQueries = require('../db/queries/interns')
 const { verifyToken, verifyAdmin, verifyTeammateAccess } = require('../middleware/auth')
 const upload = require('../middleware/upload')
+const pool = require('../db/pool')
+const logger = require('../utils/logger')
 const router = express.Router()
 
 // GET /api/interns — admin gets all, intern gets own
 router.get('/', verifyToken, async (req, res) => {
+  logger.info('interns.getAll', 'Fetching interns', { role: req.user.role, intern_id: req.user.intern_id })
   try {
     let interns
     if (req.user.role === 'admin' || req.user.role === 'super_admin') {
@@ -14,61 +17,73 @@ router.get('/', verifyToken, async (req, res) => {
       const intern = await internQueries.getInternById(req.user.intern_id)
       interns = intern ? [intern] : []
     }
+    logger.success('interns.getAll', 'Fetched interns successfully', { count: interns.length })
     res.json(interns)
   } catch (err) {
-    console.error('Error fetching interns:', err.message)
+    logger.error('interns.getAll', 'Failed to fetch interns', { error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 // GET /api/interns/batch/:batchNumber — get all interns in a batch
 router.get('/batch/:batchNumber', verifyToken, async (req, res) => {
+  const { batchNumber } = req.params
+  logger.info('interns.getByBatch', 'Fetching interns by batch', { batchNumber })
   try {
-    const interns = await internQueries.getInternsByBatch(req.params.batchNumber)
+    const interns = await internQueries.getInternsByBatch(batchNumber)
+    logger.success('interns.getByBatch', 'Fetched interns by batch successfully', { batchNumber, count: interns.length })
     res.json(interns)
   } catch (err) {
-    console.error('Error fetching interns by batch:', err.message)
+    logger.error('interns.getByBatch', 'Failed to fetch interns by batch', { batchNumber, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
-
 // GET /api/interns/archived — protected by verifyToken + verifyAdmin
 router.get('/archived', verifyToken, verifyAdmin, async (req, res) => {
+  logger.info('interns.getArchived', 'Fetching archived interns')
   try {
     const archived = await internQueries.getArchivedInterns()
+    logger.success('interns.getArchived', 'Fetched archived interns successfully', { count: archived.length })
     res.json(archived)
   } catch (err) {
-    console.error('Fetch archived interns error:', err.message)
+    logger.error('interns.getArchived', 'Failed to fetch archived interns', { error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 // GET /api/interns/:id
 router.get('/:id', verifyToken, verifyTeammateAccess, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.getById', 'Fetching intern by ID', { id })
   try {
-    const intern = await internQueries.getInternById(req.params.id)
+    const intern = await internQueries.getInternById(id)
     if (!intern) {
+      logger.warn('interns.getById', 'Intern not found', { id })
       return res.status(404).json({ error: 'Intern not found' })
     }
+    logger.success('interns.getById', 'Fetched intern by ID successfully', { id })
     res.json(intern)
   } catch (err) {
-    console.error('Error fetching intern by ID:', err.message)
+    logger.error('interns.getById', 'Failed to fetch intern by ID', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 // GET /api/interns/:id/photo — serves photo as binary image stream (public)
 router.get('/:id/photo', async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.getPhoto', 'Fetching intern photo', { id })
   try {
-    const { id } = req.params
     const row = await internQueries.getInternPhoto(id)
 
     if (!row) {
+      logger.warn('interns.getPhoto', 'Intern not found', { id })
       return res.status(404).json({ error: 'Intern not found' })
     }
 
     if (!row.photo) {
+      logger.warn('interns.getPhoto', 'No photo found for this intern', { id })
       return res.status(404).json({ error: 'No photo found for this intern' })
     }
 
@@ -77,6 +92,7 @@ router.get('/:id/photo', async (req, res) => {
       ? row.photo
       : Buffer.from(row.photo)
 
+    logger.success('interns.getPhoto', 'Served intern photo', { id, size: photoBuffer.length })
     res.writeHead(200, {
       'Content-Type': row.photo_mime_type || 'image/jpeg',
       'Content-Length': photoBuffer.length,
@@ -84,23 +100,26 @@ router.get('/:id/photo', async (req, res) => {
     })
     res.end(photoBuffer)
   } catch (err) {
-    console.error('Photo fetch error:', err.message)
+    logger.error('interns.getPhoto', 'Photo fetch failed', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 // PUT /api/interns/:id — update intern details
 router.put('/:id', verifyToken, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.update', 'Updating intern details', { id, role: req.user.role })
   try {
-    const { id } = req.params
     let merged
 
     if (req.user.role === 'intern') {
       if (id !== req.user.intern_id) {
+        logger.warn('interns.update', 'Access denied: cannot modify other profiles', { id, intern_id: req.user.intern_id })
         return res.status(403).json({ error: 'Access denied: cannot modify other profiles' })
       }
       const current = await internQueries.getInternById(id)
       if (!current) {
+        logger.warn('interns.update', 'Intern not found', { id })
         return res.status(404).json({ error: 'Intern not found' })
       }
       // Intern is only allowed to toggle their profile visibility setting
@@ -117,6 +136,7 @@ router.put('/:id', verifyToken, async (req, res) => {
 
       // Validation
       if (!name || !college_name || !dept || !year || !sem || !mail || !number || !starting_date || !ending_date || !batch_number) {
+        logger.warn('interns.update', 'Required fields are missing', { id })
         return res.status(400).json({ error: 'Required fields are missing' })
       }
 
@@ -127,9 +147,10 @@ router.put('/:id', verifyToken, async (req, res) => {
     }
 
     const updated = await internQueries.updateIntern(id, merged)
+    logger.success('interns.update', 'Intern updated successfully', { id })
     res.json({ success: true, intern: updated })
   } catch (err) {
-    console.error('Error updating intern:', err.message)
+    logger.error('interns.update', 'Error updating intern', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
@@ -141,15 +162,18 @@ router.put(
   verifyAdmin,
   upload.single('photo'),
   async (req, res) => {
+    const { id } = req.params
+    logger.info('interns.updatePhoto', 'Updating intern photo', { id })
     try {
       if (!req.file) {
+        logger.warn('interns.updatePhoto', 'No file uploaded', { id })
         return res.status(400).json({ error: 'No file uploaded' })
       }
-      const { id } = req.params
       await internQueries.updateInternPhoto(id, req.file.buffer, req.file.mimetype)
+      logger.success('interns.updatePhoto', 'Photo updated successfully', { id })
       res.json({ success: true, message: 'Photo updated successfully' })
     } catch (err) {
-      console.error('Photo update error:', err.message)
+      logger.error('interns.updatePhoto', 'Photo update error', { id, error: err.message })
       res.status(500).json({ error: err.message })
     }
   }
@@ -157,71 +181,194 @@ router.put(
 
 // PUT /api/interns/:id/approve — admin approves intern status
 router.put('/:id/approve', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.approve', 'Approving intern', { id })
   try {
-    const { id } = req.params
     const updated = await internQueries.updateInternStatus(id, 'approved')
     if (!updated) {
+      logger.warn('interns.approve', 'Intern not found for approval', { id })
       return res.status(404).json({ error: 'Intern not found' })
     }
+    logger.success('interns.approve', 'Intern approved successfully', { id })
     res.json({ success: true, intern: updated })
   } catch (err) {
-    console.error('Approval error:', err.message)
+    logger.error('interns.approve', 'Approval error', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 // DELETE /api/interns/:id — admin rejects/deletes intern
 router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.delete', 'Deleting intern (reject/delete)', { id })
   try {
-    const deleted = await internQueries.deleteIntern(req.params.id)
+    const deleted = await internQueries.deleteIntern(id)
     if (!deleted) {
+      logger.warn('interns.delete', 'Intern not found for deletion', { id })
       return res.status(404).json({ error: 'Intern not found' })
     }
+    logger.success('interns.delete', 'Intern deleted successfully', { id })
     res.json({ success: true, message: 'Intern deleted' })
   } catch (err) {
-    console.error('Delete intern error:', err.message)
+    logger.error('interns.delete', 'Delete intern error', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 // PATCH /api/interns/:id/archive — protected by verifyToken + verifyAdmin
 router.patch('/:id/archive', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.archive', 'Archiving intern', { id })
   try {
-    const updated = await internQueries.archiveIntern(req.params.id)
+    const updated = await internQueries.archiveIntern(id)
     if (!updated) {
+      logger.warn('interns.archive', 'Intern not found for archive', { id })
       return res.status(404).json({ error: 'Intern not found' })
     }
+    logger.success('interns.archive', 'Intern archived successfully', { id })
     res.json({ success: true, intern: updated })
   } catch (err) {
-    console.error('Archive intern error:', err.message)
+    logger.error('interns.archive', 'Archive intern error', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 // PATCH /api/interns/:id/restore — protected by verifyToken + verifyAdmin
 router.patch('/:id/restore', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.restore', 'Restoring intern', { id })
   try {
-    const updated = await internQueries.restoreIntern(req.params.id)
+    const updated = await internQueries.restoreIntern(id)
     if (!updated) {
+      logger.warn('interns.restore', 'Intern not found for restore', { id })
       return res.status(404).json({ error: 'Intern not found' })
     }
+    logger.success('interns.restore', 'Intern restored successfully', { id })
     res.json({ success: true, intern: updated })
   } catch (err) {
-    console.error('Restore intern error:', err.message)
+    logger.error('interns.restore', 'Restore intern error', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 // DELETE /api/interns/:id/permanent — protected by verifyToken + verifyAdmin
 router.delete('/:id/permanent', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.deletePermanent', 'Permanently deleting intern', { id })
   try {
-    const deleted = await internQueries.permanentDeleteIntern(req.params.id)
+    const deleted = await internQueries.permanentDeleteIntern(id)
     if (!deleted) {
+      logger.warn('interns.deletePermanent', 'Intern not found for permanent deletion', { id })
       return res.status(404).json({ error: 'Intern not found' })
     }
+    logger.success('interns.deletePermanent', 'Intern permanently deleted successfully', { id })
     res.json({ success: true, message: 'Intern permanently deleted' })
   } catch (err) {
-    console.error('Permanent delete intern error:', err.message)
+    logger.error('interns.deletePermanent', 'Permanent delete intern error', { id, error: err.message })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PUT /api/interns/:id/complete — admin marks internship as completed and gives feedback
+router.put('/:id/complete', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.complete', 'Marking internship as completed', { id })
+  try {
+    const { rating, feedback } = req.body
+    if (!rating || !feedback) {
+      logger.warn('interns.complete', 'Rating and feedback are required', { id })
+      return res.status(400).json({ error: 'Rating and feedback are required' })
+    }
+    if (rating < 1 || rating > 5) {
+      logger.warn('interns.complete', 'Rating must be between 1 and 5', { id, rating })
+      return res.status(400).json({ error: 'Rating must be between 1 and 5' })
+    }
+
+    const adminProfileId = req.user.profileId || req.user.id
+
+    // Mark intern as completed and set feedback_given_at
+    await pool.query(
+      `UPDATE interns SET intern_status = 'completed', feedback_given_at = NOW() WHERE id = $1`,
+      [id]
+    )
+
+    // Insert or update feedback
+    await pool.query(
+      `INSERT INTO intern_feedback (intern_id, given_by, rating, feedback)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (intern_id) DO UPDATE SET rating = $3, feedback = $4, given_by = $2, given_at = NOW()`,
+      [id, adminProfileId, rating, feedback]
+    )
+
+    logger.success('interns.complete', 'Internship marked as completed with feedback', { id })
+    res.json({ success: true, message: 'Internship marked as completed with feedback' })
+  } catch (err) {
+    logger.error('interns.complete', 'Complete internship error', { id, error: err.message })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PUT /api/interns/:id/discontinue — admin marks intern as discontinued with reason
+router.put('/:id/discontinue', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.discontinue', 'Marking intern as discontinued', { id })
+  try {
+    const { reason } = req.body
+    if (!reason || !reason.trim()) {
+      logger.warn('interns.discontinue', 'Reason is required', { id })
+      return res.status(400).json({ error: 'Reason is required' })
+    }
+
+    await pool.query(
+      `UPDATE interns SET intern_status = 'discontinued', discontinued_reason = $1, login_blocked = true WHERE id = $2`,
+      [reason.trim(), id]
+    )
+
+    logger.success('interns.discontinue', 'Intern marked as discontinued successfully', { id })
+    res.json({ success: true, message: 'Intern marked as discontinued' })
+  } catch (err) {
+    logger.error('interns.discontinue', 'Discontinue intern error', { id, error: err.message })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/interns/:id/feedback — get feedback for an intern (intern or admin)
+router.get('/:id/feedback', verifyToken, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.getFeedback', 'Fetching feedback for intern', { id })
+  try {
+    const result = await pool.query(
+      `SELECT f.*, p.name as given_by_name
+       FROM intern_feedback f
+       LEFT JOIN profiles p ON p.id = f.given_by
+       WHERE f.intern_id = $1`,
+      [id]
+    )
+    if (!result.rows[0]) {
+      logger.warn('interns.getFeedback', 'No feedback found', { id })
+      return res.status(404).json({ error: 'No feedback found' })
+    }
+    logger.success('interns.getFeedback', 'Fetched feedback successfully', { id })
+    res.json(result.rows[0])
+  } catch (err) {
+    logger.error('interns.getFeedback', 'Failed to fetch feedback', { id, error: err.message })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PUT /api/interns/:id/revoke-discontinue — admin restores a discontinued intern
+router.put('/:id/revoke-discontinue', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('interns.revokeDiscontinue', 'Revoking discontinue status', { id })
+  try {
+    await pool.query(
+      `UPDATE interns SET intern_status = 'active', discontinued_reason = NULL, login_blocked = false WHERE id = $1`,
+      [id]
+    )
+    logger.success('interns.revokeDiscontinue', 'Discontinue status revoked successfully', { id })
+    res.json({ success: true, message: 'Discontinue revoked successfully' })
+  } catch (err) {
+    logger.error('interns.revokeDiscontinue', 'Failed to revoke discontinue status', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })

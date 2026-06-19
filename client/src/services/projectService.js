@@ -11,3 +11,16 @@ export const assignProject = async (projectData, token = getToken()) => {
     body: JSON.stringify(projectData)
   }, token)
 }
+
+export const generateAITasks = async (projectTitle, projectDescription, startingDate, endingDate, internId, token = getToken()) => {
+  return apiClient('/api/ai/generate-tasks', {
+    method: 'POST',
+    body: JSON.stringify({
+      startingDate,
+      endingDate,
+      projectTitle,
+      projectDescription,
+      intern_id: internId
+    })
+  }, token)
+}

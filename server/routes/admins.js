@@ -4,27 +4,33 @@ const bcrypt = require('bcryptjs')
 const adminQueries = require('../db/queries/admins')
 const { verifyToken, verifySuperAdmin } = require('../middleware/auth')
 const { sendAdminCredentials } = require('../utils/mailer')
+const logger = require('../utils/logger')
 const router = express.Router()
 
 router.get('/', verifyToken, verifySuperAdmin, async (req, res) => {
+  logger.info('admins.getAll', 'Fetching all admins')
   try {
     const admins = await adminQueries.getAllAdmins()
+    logger.success('admins.getAll', 'Fetched all admins successfully', { count: admins.length })
     res.json(admins)
   } catch (err) {
-    console.error('Error getting admins:', err.message)
+    logger.error('admins.getAll', 'Failed to fetch admins', { error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 router.post('/', verifyToken, verifySuperAdmin, async (req, res) => {
   const { name, email } = req.body
+  logger.info('admins.create', 'Creating admin', { email, name })
   if (!name || !email) {
+    logger.warn('admins.create', 'Name and email are required', { email })
     return res.status(400).json({ error: 'Name and email are required' })
   }
 
   try {
     const existing = await adminQueries.getAdminByEmail(email)
     if (existing) {
+      logger.warn('admins.create', 'Admin with this email already exists', { email })
       return res.status(400).json({ error: 'Admin with this email already exists' })
     }
 
@@ -36,30 +42,38 @@ router.post('/', verifyToken, verifySuperAdmin, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10)
     const newAdmin = await adminQueries.createAdmin(name, email, hashedPassword)
+    logger.success('admins.create', 'Admin created successfully', { email, id: newAdmin.id })
     res.status(201).json(newAdmin)
+
     // Send email in background
-    sendAdminCredentials(email, name, password).catch((mailErr) => {
-      console.error(`❌ [MAIL FAILED] Could not send credentials to ${email}:`, {
+    sendAdminCredentials(email, name, password).then(() => {
+      logger.info('admins.create', 'Admin credentials email sent successfully', { email })
+    }).catch((mailErr) => {
+      logger.error('admins.create', 'Failed to send credentials email', {
+        email,
         error: mailErr.message,
         code: mailErr.code
       })
-      // Admin is still created — super admin can manually resend or inform the admin
     })
   } catch (err) {
-    console.error('Error creating admin:', err.message)
+    logger.error('admins.create', 'Error creating admin', { email, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
 
 router.delete('/:id', verifyToken, verifySuperAdmin, async (req, res) => {
+  const { id } = req.params
+  logger.info('admins.delete', 'Deleting admin', { id })
   try {
-    const deleted = await adminQueries.deleteAdmin(req.params.id)
+    const deleted = await adminQueries.deleteAdmin(id)
     if (!deleted) {
+      logger.warn('admins.delete', 'Admin not found', { id })
       return res.status(404).json({ error: 'Admin not found' })
     }
+    logger.success('admins.delete', 'Admin deleted successfully', { id })
     res.json({ success: true, message: 'Admin deleted successfully' })
   } catch (err) {
-    console.error('Error deleting admin:', err.message)
+    logger.error('admins.delete', 'Error deleting admin', { id, error: err.message })
     res.status(500).json({ error: err.message })
   }
 })
