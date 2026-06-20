@@ -13,8 +13,10 @@ import { getTasksByInternId } from '../../services/taskService'
 import useAutoRefresh from '../../hooks/useAutoRefresh'
 import { keepPreviousIfEqual } from '../../utils/stableState'
 
+const SUPER_ADMIN_ACTIVE_PAGE_KEY = 'ims_super_admin_active_page'
+
 const SuperAdminLayout = ({ onLogout }) => {
-  const [activePage, setActivePage] = useState('dashboard') // 'dashboard' | 'pending' | 'admins' | 'archived'
+  const [activePage, setActivePage] = useState(() => sessionStorage.getItem(SUPER_ADMIN_ACTIVE_PAGE_KEY) || 'dashboard') // 'dashboard' | 'pending' | 'admins' | 'archived'
   const [batches, setBatches] = useState([])
   const [admins, setAdmins] = useState([])
   const [pendingInterns, setPendingInterns] = useState([])
@@ -60,6 +62,10 @@ const SuperAdminLayout = ({ onLogout }) => {
   })
 
   const [internStatusCounts, setInternStatusCounts] = useState({ active: 0, discontinued: 0, completed: 0 })
+
+  useEffect(() => {
+    sessionStorage.setItem(SUPER_ADMIN_ACTIVE_PAGE_KEY, activePage)
+  }, [activePage])
 
   useEffect(() => {
     fetchBatches()

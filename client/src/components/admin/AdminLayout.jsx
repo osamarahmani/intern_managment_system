@@ -8,9 +8,15 @@ import './AdminLayout.css';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { keepPreviousIfEqual } from '../../utils/stableState';
 
+const ADMIN_ACTIVE_PAGE_KEY = 'ims_admin_active_page';
+
 const AdminLayout = ({ onLogout }) => {
   const [pendingInterns, setPendingInterns] = useState([]);
-  const [activePage, setActivePage] = useState('dashboard'); // 'dashboard' | 'pending' | 'archived'
+  const [activePage, setActivePage] = useState(() => sessionStorage.getItem(ADMIN_ACTIVE_PAGE_KEY) || 'dashboard'); // 'dashboard' | 'pending' | 'archived'
+
+  useEffect(() => {
+    sessionStorage.setItem(ADMIN_ACTIVE_PAGE_KEY, activePage);
+  }, [activePage]);
 
   useEffect(() => {
     if (!window.history.state || window.history.state.activePage !== activePage) {

@@ -93,10 +93,17 @@ const formatDateForInput = (dateStr) => {
   }
 };
 
+const ADMIN_BATCH_VIEW_KEY = 'ims_admin_batch_view';
+const ADMIN_SELECTED_BATCH_KEY = 'ims_admin_selected_batch';
+const ADMIN_INTERN_TAB_KEY = 'ims_admin_intern_tab';
+
 const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   // Navigation & View States
-  const [activeView, setActiveView] = useState(initialBatchNumber ? 'batchDetails' : 'batches'); // 'batches' | 'batchDetails'
-  const [selectedBatch, setSelectedBatch] = useState(initialBatchNumber ? { batch_number: initialBatchNumber } : null);
+  const [activeView, setActiveView] = useState(() => initialBatchNumber ? 'batchDetails' : sessionStorage.getItem(ADMIN_BATCH_VIEW_KEY) || 'batches'); // 'batches' | 'batchDetails'
+  const [selectedBatch, setSelectedBatch] = useState(() => {
+    const savedBatchNumber = initialBatchNumber || sessionStorage.getItem(ADMIN_SELECTED_BATCH_KEY);
+    return savedBatchNumber ? { batch_number: savedBatchNumber } : null;
+  });
   const [selectedIntern, setSelectedIntern] = useState(null);
 
   // Split Panel Resizing States & Refs
@@ -126,7 +133,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   const [projectLive, setProjectLive] = useState('');
 
   // Redesigned Task Form States
-  const [activeTab, setActiveTab] = useState('details'); // 'details' | 'project' | 'tasks'
+  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem(ADMIN_INTERN_TAB_KEY) || 'details'); // 'details' | 'project' | 'tasks'
   const [assignWork, setAssignWork] = useState('');
   const [assignDescription, setAssignDescription] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
@@ -212,6 +219,22 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     }
   }, [selectedIntern])
 
+  useEffect(() => {
+    sessionStorage.setItem(ADMIN_BATCH_VIEW_KEY, activeView);
+  }, [activeView]);
+
+  useEffect(() => {
+    if (selectedBatch?.batch_number) {
+      sessionStorage.setItem(ADMIN_SELECTED_BATCH_KEY, selectedBatch.batch_number);
+    } else {
+      sessionStorage.removeItem(ADMIN_SELECTED_BATCH_KEY);
+    }
+  }, [selectedBatch?.batch_number]);
+
+  useEffect(() => {
+    sessionStorage.setItem(ADMIN_INTERN_TAB_KEY, activeTab);
+  }, [activeTab]);
+
   // Sync internal navigation with browser history
   useEffect(() => {
     if (!window.history.state ||
@@ -224,7 +247,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
         selectedBatchNumber: selectedBatch?.batch_number
       }, '');
     }
-  }, [activeView, selectedBatch]);
+  }, [activeView, selectedBatch?.id, selectedBatch?.batch_number]);
 
   useEffect(() => {
     const handlePop = (e) => {
@@ -479,7 +502,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       setSelectedIntern(null); // Reset active intern panel
       setActiveTab('details');
     }
-  }, [selectedBatch]);
+  }, [selectedBatch?.id, selectedBatch?.batch_number]);
 
   // 3. Fetch projects and tasks reactively when the active selected intern changes
   useEffect(() => {
@@ -493,7 +516,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       setAiGeneratedTasks([]);
       setActiveTab('details');
     }
-  }, [selectedIntern]);
+  }, [selectedIntern?.id]);
 
   // 4. Populate editedIntern when selectedIntern changes
   useEffect(() => {
@@ -662,6 +685,16 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
           const matched = data.find(b => b.batch_number === initialBatchNumber);
           setSelectedBatch(matched || { batch_number: initialBatchNumber });
           setActiveView('batchDetails');
+        } else {
+          const savedBatchNumber = sessionStorage.getItem(ADMIN_SELECTED_BATCH_KEY);
+          const savedView = sessionStorage.getItem(ADMIN_BATCH_VIEW_KEY);
+          if (savedView === 'batchDetails' && savedBatchNumber) {
+            const matched = data.find(b => b.batch_number === savedBatchNumber);
+            if (matched) {
+              setSelectedBatch(prev => prev ? prev : matched);
+              setActiveView('batchDetails');
+            }
+          }
         }
       }
     } catch (err) {

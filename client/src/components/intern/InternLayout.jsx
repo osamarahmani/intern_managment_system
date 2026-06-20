@@ -14,12 +14,18 @@ import InternProjectPage from './pages/InternProject';
 import InternTasksPage from './pages/InternTasks';
 import BatchDirectory from './pages/BatchDirectory';
 
+const INTERN_ACTIVE_PAGE_KEY = 'ims_intern_active_page';
+
 const InternLayout = ({ onLogout }) => {
   const [internData, setInternData] = useState(null);
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [activePage, setActivePage] = useState('profile'); // 'profile' | 'project' | 'tasks' | 'directory'
+  const [activePage, setActivePage] = useState(() => sessionStorage.getItem(INTERN_ACTIVE_PAGE_KEY) || 'profile'); // 'profile' | 'project' | 'tasks' | 'directory'
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    sessionStorage.setItem(INTERN_ACTIVE_PAGE_KEY, activePage);
+  }, [activePage]);
 
   useEffect(() => {
     if (!window.history.state || window.history.state.activePage !== activePage) {
