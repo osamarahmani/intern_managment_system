@@ -9,6 +9,7 @@ const projectRoutes = require('./routes/projects')
 const taskRoutes = require('./routes/tasks')
 const adminRoutes = require('./routes/admins')
 const aiRoutes = require('./routes/ai')
+const exitFeedbackRoutes = require('./routes/exitFeedback')
 
 const app = express()
 
@@ -40,6 +41,8 @@ app.use('/api/projects', projectRoutes)
 app.use('/api/tasks', taskRoutes)
 app.use('/api/admins', adminRoutes)
 app.use('/api/ai', aiRoutes)
+app.use('/api/exit-feedback', exitFeedbackRoutes)
+
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }))
 

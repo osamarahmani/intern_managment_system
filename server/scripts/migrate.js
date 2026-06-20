@@ -137,6 +137,38 @@ const runMigration = async () => {
       )
     `)
 
+    // intern_exit_feedback table
+    const tableExistsRes = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'intern_exit_feedback'
+      );
+    `)
+    if (!tableExistsRes.rows[0].exists) {
+      await pool.query(`
+        CREATE TABLE intern_exit_feedback (
+          id SERIAL PRIMARY KEY,
+          intern_id TEXT NOT NULL UNIQUE,
+          photo_consent TEXT NOT NULL CHECK (photo_consent IN ('both', 'anonymous', 'private')),
+          satisfaction_score INTEGER NOT NULL CHECK (satisfaction_score BETWEEN 1 AND 10),
+          mentor_support TEXT NOT NULL CHECK (mentor_support IN ('not_supportive', 'slightly', 'moderately', 'very', 'exceptionally')),
+          learning_areas TEXT[] NOT NULL,
+          rating_clarity INTEGER NOT NULL CHECK (rating_clarity BETWEEN 1 AND 4),
+          rating_resources INTEGER NOT NULL CHECK (rating_resources BETWEEN 1 AND 4),
+          rating_worklife INTEGER NOT NULL CHECK (rating_worklife BETWEEN 1 AND 4),
+          rating_culture INTEGER NOT NULL CHECK (rating_culture BETWEEN 1 AND 4),
+          recommend_score INTEGER NOT NULL CHECK (recommend_score BETWEEN 1 AND 5),
+          testimonial TEXT NOT NULL,
+          improvement TEXT NOT NULL,
+          submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `)
+    }
+
+
+
     // 7. password_reset_tokens table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.password_reset_tokens (

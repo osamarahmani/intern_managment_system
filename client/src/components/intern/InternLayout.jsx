@@ -11,13 +11,15 @@ import InternProfilePage from './pages/InternProfile';
 import InternProjectPage from './pages/InternProject';
 import InternTasksPage from './pages/InternTasks';
 import BatchDirectory from './pages/BatchDirectory';
+import ExitFeedbackForm from './ExitFeedbackForm';
 
 const InternLayout = ({ onLogout }) => {
   const [internData, setInternData] = useState(null);
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [activePage, setActivePage] = useState('profile'); // 'profile' | 'project' | 'tasks' | 'directory'
+  const [activePage, setActivePage] = useState('profile'); // 'profile' | 'project' | 'tasks' | 'directory' | 'exit-feedback'
   const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     if (!window.history.state || window.history.state.activePage !== activePage) {
@@ -142,7 +144,8 @@ const InternLayout = ({ onLogout }) => {
             { id: 'profile', label: 'My Profile' },
             { id: 'project', label: 'My Project' },
             { id: 'tasks', label: 'My Tasks' },
-            { id: 'directory', label: 'Teammates Profile' }
+            { id: 'directory', label: 'Teammates Profile' },
+            ...(internData?.intern_status === 'completed' ? [{ id: 'exit-feedback', label: 'Exit Feedback' }] : [])
           ].map(tab => (
             <button
               key={tab.id}
@@ -262,6 +265,12 @@ const InternLayout = ({ onLogout }) => {
               <BatchDirectory
                 internId={internData?.id}
                 internName={internData?.name || ''}
+              />
+            )}
+            {activePage === 'exit-feedback' && (
+              <ExitFeedbackForm
+                internName={internData?.name || ''}
+                internId={internData?.id}
               />
             )}
           </>

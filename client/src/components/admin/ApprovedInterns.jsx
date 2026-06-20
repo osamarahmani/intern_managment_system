@@ -18,6 +18,8 @@ import { getBatches, createBatch, updateBatch, archiveBatch } from '../../servic
 import { getProjectByInternId, assignProject, generateAITasks } from '../../services/projectService';
 import { getTasksByInternId, assignTask, deleteTask, updateTask } from '../../services/taskService';
 import { getSubTasksByTaskId, createSubTask, updateSubTaskStatus, getTaskNotes, saveTaskNote, updateTaskStatus, getAITaskDrafts, assignAITaskDraft, updateAITaskDraft } from '../../services/taskService';
+import { getAllExitFeedback } from '../../services/exitFeedbackService';
+
 
 const thStyle = {
   padding: '10px 16px',
@@ -190,6 +192,10 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   const [genStartDate, setGenStartDate] = useState('')
   const [genEndDate, setGenEndDate] = useState('')
   const [internStatusCounts, setInternStatusCounts] = useState({ active: 0, discontinued: 0, completed: 0 })
+
+  const [showExitFeedbackModal, setShowExitFeedbackModal] = useState(false)
+  const [exitFeedbackData, setExitFeedbackData] = useState(null)
+  const [exitFeedbackLoading, setExitFeedbackLoading] = useState(false)
 
   useEffect(() => {
     if (selectedIntern) {
@@ -642,6 +648,21 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       console.error('Error fetching intern status counts:', err.message)
     }
   }
+
+  const fetchExitFeedback = async (internId) => {
+    setExitFeedbackLoading(true)
+    setExitFeedbackData(null)
+    try {
+      const data = await apiClient(`/api/exit-feedback/${internId}`, {}, getToken())
+      setExitFeedbackData(data || null)
+    } catch (err) {
+      setExitFeedbackData(null)
+    } finally {
+      setExitFeedbackLoading(false)
+    }
+  }
+
+
 
   const fetchBatches = async () => {
     try {
@@ -2131,42 +2152,60 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
 
                               if (isOver) {
                                 return (
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      const editing = !!selectedIntern.feedback_given_at
-                                      setIsEditingFeedback(editing)
-                                      if (editing) {
-                                        let rating = selectedIntern.feedback_rating || 0
-                                        let feedbackVal = selectedIntern.feedback_text || ''
-                                        try {
-                                          const feedbackData = await apiClient(`/api/interns/${selectedIntern.id}/feedback`, {}, getToken())
-                                          if (feedbackData) {
-                                            rating = feedbackData.rating
-                                            feedbackVal = feedbackData.feedback
-                                            setSelectedIntern(prev => ({
-                                              ...prev,
-                                              feedback_rating: rating,
-                                              feedback_text: feedbackVal
-                                            }))
+                                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    {selectedIntern.intern_status === 'completed' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          fetchExitFeedback(selectedIntern.id)
+                                          setShowExitFeedbackModal(true)
+                                        }}
+                                        style={{
+                                          height: '38px', padding: '0 16px', background: '#F0EEFF',
+                                          color: '#3D35C4', border: '1px solid #3D35C4', borderRadius: '8px',
+                                          fontSize: '13px', fontWeight: '600', cursor: 'pointer'
+                                        }}
+                                      >
+                                        📋 View Exit Feedback
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const editing = !!selectedIntern.feedback_given_at
+                                        setIsEditingFeedback(editing)
+                                        if (editing) {
+                                          let rating = selectedIntern.feedback_rating || 0
+                                          let feedbackVal = selectedIntern.feedback_text || ''
+                                          try {
+                                            const feedbackData = await apiClient(`/api/interns/${selectedIntern.id}/feedback`, {}, getToken())
+                                            if (feedbackData) {
+                                              rating = feedbackData.rating
+                                              feedbackVal = feedbackData.feedback
+                                              setSelectedIntern(prev => ({
+                                                ...prev,
+                                                feedback_rating: rating,
+                                                feedback_text: feedbackVal
+                                              }))
+                                            }
+                                          } catch (err) {
+                                            console.error("Failed to fetch feedback", err)
                                           }
-                                        } catch (err) {
-                                          console.error("Failed to fetch feedback", err)
+                                          setFeedbackForm({ rating, feedback: feedbackVal })
+                                        } else {
+                                          setFeedbackForm({ rating: 0, feedback: '' })
                                         }
-                                        setFeedbackForm({ rating, feedback: feedbackVal })
-                                      } else {
-                                        setFeedbackForm({ rating: 0, feedback: '' })
-                                      }
-                                      setShowFeedbackModal(true)
-                                    }}
-                                    style={{
-                                      height: '38px', padding: '0 20px', background: '#2E7D32',
-                                      color: '#fff', border: 'none', borderRadius: '8px',
-                                      fontSize: '13px', fontWeight: '600', cursor: 'pointer'
-                                    }}
-                                  >
-                                    {selectedIntern.feedback_given_at ? '✏️ Edit Feedback' : '🎓 Give Feedback'}
-                                  </button>
+                                        setShowFeedbackModal(true)
+                                      }}
+                                      style={{
+                                        height: '38px', padding: '0 20px', background: '#2E7D32',
+                                        color: '#fff', border: 'none', borderRadius: '8px',
+                                        fontSize: '13px', fontWeight: '600', cursor: 'pointer'
+                                      }}
+                                    >
+                                      {selectedIntern.feedback_given_at ? '✏️ Edit Feedback' : '🎓 Give Feedback'}
+                                    </button>
+                                  </div>
                                 )
                               }
 
@@ -3284,6 +3323,211 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
           </div>
         </div>
       )}
+
+      {/* Exit Feedback Modal */}
+      {showExitFeedbackModal && (
+        <div
+          onClick={() => setShowExitFeedbackModal(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+            zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '16px', boxSizing: 'border-box'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '580px',
+              maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.25)', overflow: 'hidden'
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px', borderBottom: '1px solid #F0F0F0',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              background: 'linear-gradient(135deg, #F3F0FF 0%, #E8F5E9 100%)',
+              flexShrink: 0
+            }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Exit Feedback</div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#212121' }}>{selectedIntern?.name}</h3>
+              </div>
+              <button type="button" onClick={() => setShowExitFeedbackModal(false)}
+                style={{ background: 'rgba(0,0,0,0.06)', border: 'none', borderRadius: '50%', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', color: '#555', flexShrink: 0 }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ overflowY: 'auto', flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {exitFeedbackLoading ? (
+                <div style={{ textAlign: 'center', color: '#9E9E9E', padding: '60px 0', fontSize: '14px' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '12px' }}>⏳</div>
+                  Loading feedback...
+                </div>
+              ) : !exitFeedbackData ? (
+                <div style={{ textAlign: 'center', color: '#9E9E9E', padding: '60px 0' }}>
+                  <div style={{ fontSize: '36px', marginBottom: '12px' }}>📭</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#757575' }}>No feedback submitted yet</div>
+                  <div style={{ fontSize: '12px', color: '#BDBDBD', marginTop: '6px' }}>This intern hasn't filled the exit feedback form.</div>
+                </div>
+              ) : (
+                <>
+                  {/* Submitted date pill */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#757575', background: '#F5F5F5', padding: '4px 12px', borderRadius: '20px' }}>
+                      📅 Submitted {new Date(exitFeedbackData.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+
+                  {/* Score cards row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {/* Satisfaction */}
+                    <div style={{ background: 'linear-gradient(135deg, #F3F0FF, #E8E6FF)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#7B6FD8', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>Satisfaction</div>
+                      <div style={{ fontSize: '32px', fontWeight: 800, color: '#3D35C4', lineHeight: 1 }}>{exitFeedbackData.satisfaction_score}</div>
+                      <div style={{ fontSize: '12px', color: '#9E9E9E', marginTop: '4px' }}>out of 10</div>
+                      <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '10px', flexWrap: 'wrap' }}>
+                        {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                          <div key={n} style={{
+                            width: '14px', height: '6px', borderRadius: '3px',
+                            background: n <= exitFeedbackData.satisfaction_score ? '#3D35C4' : '#E0E0E0'
+                          }} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Recommendation */}
+                    <div style={{ background: 'linear-gradient(135deg, #E8F5E9, #C8E6C9)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#388E3C', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>Recommendation</div>
+                      <div style={{ fontSize: '32px', fontWeight: 800, color: '#2E7D32', lineHeight: 1 }}>{exitFeedbackData.recommend_score}</div>
+                      <div style={{ fontSize: '12px', color: '#9E9E9E', marginTop: '4px' }}>out of 5</div>
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginTop: '10px' }}>
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <span key={n} style={{ fontSize: '16px', color: n <= exitFeedbackData.recommend_score ? '#2E7D32' : '#E0E0E0' }}>★</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mentor Support */}
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Mentor Support</div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#F0EEFF', border: '1px solid #C5B8FF', borderRadius: '10px', padding: '8px 16px' }}>
+                      <span style={{ fontSize: '16px' }}>
+                        {exitFeedbackData.mentor_support === 'exceptionally' ? '🌟' : exitFeedbackData.mentor_support === 'very' ? '👍' : exitFeedbackData.mentor_support === 'moderately' ? '🤝' : exitFeedbackData.mentor_support === 'slightly' ? '🙂' : '😐'}
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#3D35C4' }}>
+                        {exitFeedbackData.mentor_support.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} Supportive
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Learning Areas */}
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Learning Areas</div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {(exitFeedbackData.learning_areas || []).map(area => (
+                        <span key={area} style={{
+                          background: '#E8F5E9', color: '#2E7D32', border: '1px solid #A5D6A7',
+                          padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600
+                        }}>
+                          ✓ {area.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Aspect Ratings */}
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Aspect Ratings</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {[
+                        { key: 'rating_clarity', label: 'Clarity of expectations & goals', },
+                        { key: 'rating_resources', label: 'Access to resources & tools', },
+                        { key: 'rating_worklife', label: 'Work-life balance', },
+                        { key: 'rating_culture', label: 'Team culture integration', }
+                      ].map(({ key, label, icon }) => {
+                        const val = exitFeedbackData[key]
+                        const labels = ['', 'Poor', 'Fair', 'Good', 'Excellent']
+                        const colors = ['', '#B00020', '#E65100', '#1565C0', '#2E7D32']
+                        const bgs = ['', '#FFEBEE', '#FFF3E0', '#E3F2FD', '#E8F5E9']
+                        return (
+                          <div key={key} style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            padding: '10px 14px', background: '#FAFAFA', borderRadius: '8px',
+                            border: '1px solid #F0F0F0'
+                          }}>
+                            <span style={{ fontSize: '13px', color: '#424242', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {label}
+                            </span>
+                            <span style={{
+                              fontSize: '12px', fontWeight: 700, padding: '3px 10px',
+                              borderRadius: '20px', background: bgs[val], color: colors[val]
+                            }}>
+                              {labels[val]}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Testimonial */}
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Testimonial</div>
+                    <div style={{
+                      background: 'linear-gradient(135deg, #F8F7FF, #F0EEFF)',
+                      border: '1px solid #D1C9FF', borderRadius: '12px', padding: '16px 18px',
+                      fontSize: '14px', color: '#212121', lineHeight: 1.8,
+                      fontStyle: 'italic', position: 'relative'
+                    }}>
+                      <span style={{ fontSize: '32px', color: '#C5B8FF', lineHeight: 0.5, verticalAlign: 'middle', marginRight: '6px' }}>"</span>
+                      {exitFeedbackData.testimonial}
+                      <span style={{ fontSize: '32px', color: '#C5B8FF', lineHeight: 0.5, verticalAlign: 'middle', marginLeft: '4px' }}>"</span>
+                    </div>
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#9E9E9E' }}>Consent:</span>
+                      <span style={{
+                        fontSize: '11px', fontWeight: 700, padding: '2px 10px', borderRadius: '20px',
+                        background: exitFeedbackData.photo_consent === 'both' ? '#E8F5E9' : exitFeedbackData.photo_consent === 'anonymous' ? '#FFF8E1' : '#FFEBEE',
+                        color: exitFeedbackData.photo_consent === 'both' ? '#2E7D32' : exitFeedbackData.photo_consent === 'anonymous' ? '#F57F17' : '#B00020'
+                      }}>
+                        {exitFeedbackData.photo_consent === 'both' ? '✓ Name + Testimonial allowed' : exitFeedbackData.photo_consent === 'anonymous' ? '◑ Anonymous use only' : '✕ Private — do not use'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Improvement */}
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Suggested Improvement</div>
+                    <div style={{
+                      background: '#FFFDE7', border: '1px solid #FFF176',
+                      borderRadius: '12px', padding: '14px 16px',
+                      fontSize: '13px', color: '#424242', lineHeight: 1.7
+                    }}>
+                      💡 {exitFeedbackData.improvement}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #F0F0F0', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setShowExitFeedbackModal(false)}
+                style={{
+                  height: '38px', padding: '0 24px', background: '#3D35C4', color: '#fff',
+                  border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer'
+                }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
     </div>
   );
