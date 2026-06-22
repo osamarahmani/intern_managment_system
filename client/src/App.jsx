@@ -10,6 +10,25 @@ import ResetPassword from './components/auth/ResetPassword';
 import ChangePassword from './components/auth/ChangePassword';
 import { login, logout, getToken, getRole } from './services/authService';
 
+const clearStoredSession = () => {
+  sessionStorage.removeItem('token')
+  sessionStorage.removeItem('role')
+  sessionStorage.removeItem('intern_id')
+  sessionStorage.removeItem('user_name')
+  sessionStorage.removeItem('user_email')
+  sessionStorage.removeItem('is_super_admin_owner')
+  sessionStorage.removeItem('ims_admin_active_page')
+  sessionStorage.removeItem('ims_intern_active_page')
+  sessionStorage.removeItem('ims_super_admin_active_page')
+  sessionStorage.removeItem('ims_admin_batch_view')
+  sessionStorage.removeItem('ims_admin_selected_batch')
+  sessionStorage.removeItem('ims_admin_selected_batch_id')
+  sessionStorage.removeItem('ims_admin_intern_tab')
+  localStorage.removeItem('token')
+  localStorage.removeItem('role')
+  localStorage.removeItem('intern_id')
+}
+
 const consumeResetToken = () => {
   const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
   const query = new URLSearchParams(window.location.search)
@@ -107,6 +126,18 @@ function App() {
     localStorage.removeItem('token')
     localStorage.removeItem('role')
     localStorage.removeItem('intern_id')
+  }, [])
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearStoredSession()
+      setMustChangePassword(false)
+      setPendingToken(null)
+      setPendingRole(null)
+      setPage('login')
+    }
+    window.addEventListener('ims-auth-expired', handleAuthExpired)
+    return () => window.removeEventListener('ims-auth-expired', handleAuthExpired)
   }, [])
 
   return (

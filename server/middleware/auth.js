@@ -1,7 +1,12 @@
 const pool = require('../db/pool')
 const { verifyAccessToken } = require('../utils/tokens')
-const { readAuthCookie } = require('../utils/authCookie')
+const { readAuthCookie, clearAuthCookie } = require('../utils/authCookie')
 const { isConfiguredSuperAdminEmail } = require('../utils/superAdminIdentity')
+
+const rejectAndClearSession = (res, status, error) => {
+  clearAuthCookie(res)
+  return res.status(status).json({ error })
+}
 
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers['authorization']
@@ -26,7 +31,7 @@ const verifyToken = async (req, res, next) => {
       if (account.feedback_given_at && Date.now() > new Date(account.feedback_given_at).getTime() + 7 * 86400000) {
         return res.status(403).json({ error: 'Internship access has expired' })
       }
-      if ((decoded.token_version || 0) !== (account.token_version || 0)) return res.status(403).json({ error: 'Session expired' })
+      if ((decoded.token_version || 0) !== (account.token_version || 0)) return rejectAndClearSession(res, 403, 'Session expired')
     } else {
       const result = await pool.query(
         'SELECT role, email, must_change_password, token_version FROM profiles WHERE id = $1',
@@ -37,7 +42,7 @@ const verifyToken = async (req, res, next) => {
       if (account.role === 'super_admin' && !isConfiguredSuperAdminEmail(account.email)) {
         return res.status(403).json({ error: 'Super admin identity is not configured for this account' })
       }
-      if ((decoded.token_version || 0) !== (account.token_version || 0)) return res.status(403).json({ error: 'Session expired' })
+      if ((decoded.token_version || 0) !== (account.token_version || 0)) return rejectAndClearSession(res, 403, 'Session expired')
       decoded.must_change_password = account.role === 'admin' && Boolean(account.must_change_password)
       if (decoded.must_change_password && req.originalUrl !== '/api/auth/change-password') {
         return res.status(403).json({ error: 'Password change required' })
@@ -46,7 +51,7 @@ const verifyToken = async (req, res, next) => {
     req.user = decoded
     next()
   } catch (err) {
-    return res.status(403).json({ error: 'Invalid token' })
+    return rejectAndClearSession(res, 403, 'Invalid token')
   }
 }
 

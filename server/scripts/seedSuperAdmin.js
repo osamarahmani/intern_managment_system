@@ -20,10 +20,11 @@ const seedSuperAdmin = async () => {
       await db.query('BEGIN')
 
       const existingTarget = await db.query(
-        'SELECT id FROM profiles WHERE LOWER(email) = LOWER($1) LIMIT 1',
+        'SELECT id, role, name, email, password, must_change_password FROM profiles WHERE LOWER(email) = LOWER($1) LIMIT 1',
         [email]
       )
-      const id = existingTarget.rows[0]?.id || randomUUID()
+      const existingProfile = existingTarget.rows[0] || null
+      const id = existingProfile?.id || randomUUID()
 
       await db.query(
         `INSERT INTO auth.users (id, email)
@@ -41,18 +42,33 @@ const seedSuperAdmin = async () => {
         [email]
       )
 
-      await db.query(
-        `INSERT INTO profiles (id, role, name, email, password, must_change_password)
-         VALUES ($1, 'super_admin', $2, $3, $4, false)
-         ON CONFLICT (id) DO UPDATE SET
-           role = 'super_admin',
-           name = EXCLUDED.name,
-           email = EXCLUDED.email,
-           password = EXCLUDED.password,
-           must_change_password = false,
-           token_version = profiles.token_version + 1`,
-        [id, name, email, hashed]
-      )
+      if (existingProfile) {
+        const passwordMatches = existingProfile.password
+          ? await bcrypt.compare(password, existingProfile.password)
+          : false
+        const shouldInvalidateSessions =
+          existingProfile.role !== 'super_admin' ||
+          existingProfile.must_change_password === true ||
+          !passwordMatches
+
+        await db.query(
+          `UPDATE profiles
+           SET role = 'super_admin',
+               name = $2,
+               email = $3,
+               password = CASE WHEN $4::boolean THEN $5 ELSE password END,
+               must_change_password = false,
+               token_version = token_version + CASE WHEN $6::boolean THEN 1 ELSE 0 END
+           WHERE id = $1`,
+          [id, name, email, !passwordMatches, hashed, shouldInvalidateSessions]
+        )
+      } else {
+        await db.query(
+          `INSERT INTO profiles (id, role, name, email, password, must_change_password)
+           VALUES ($1, 'super_admin', $2, $3, $4, false)`,
+          [id, name, email, hashed]
+        )
+      }
       await db.query('COMMIT')
     } catch (error) {
       await db.query('ROLLBACK')
