@@ -228,7 +228,9 @@ const runMigration = async () => {
     // If multiple admins have the same batch name, batch_id must be selected explicitly.
     await pool.query(`
       WITH unique_batches AS (
-        SELECT lower(batch_number) AS normalized_batch_number, MIN(id) AS batch_id
+        SELECT
+          lower(batch_number) AS normalized_batch_number,
+          (ARRAY_AGG(id ORDER BY created_at ASC NULLS LAST, id ASC))[1] AS batch_id
         FROM public.batches
         GROUP BY lower(batch_number)
         HAVING COUNT(*) = 1
