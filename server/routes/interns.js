@@ -32,18 +32,40 @@ router.get('/', verifyToken, async (req, res) => {
 // GET /api/interns/batch/:batchNumber — get all interns in a batch
 router.get('/batch/:batchNumber', verifyToken, async (req, res) => {
   const { batchNumber } = req.params
-  logger.info('interns.getByBatch', 'Fetching interns by batch', { batchNumber })
+  const requestedBatchId = req.query.batch_id
+  logger.info('interns.getByBatch', 'Fetching interns by batch', { batchNumber, requestedBatchId })
   try {
+    let batch = null
     if (req.user.role === 'intern') {
       const own = await internQueries.getInternById(req.user.intern_id)
       if (!own || own.batch_number !== batchNumber) return res.status(403).json({ error: 'Access denied' })
+      batch = { id: own.batch_id, batch_number: own.batch_number }
     } else if (req.user.role === 'admin') {
-      const owned = await pool.query('SELECT 1 FROM batches WHERE batch_number = $1 AND created_by = $2', [batchNumber, req.user.id])
+      const owned = await pool.query(
+        'SELECT id, batch_number, visibility_mode FROM batches WHERE LOWER(batch_number) = LOWER($1) AND created_by = $2 LIMIT 1',
+        [batchNumber, req.user.id]
+      )
       if (!owned.rowCount) return res.status(403).json({ error: 'Access denied' })
+      batch = owned.rows[0]
+    } else if (req.user.role === 'super_admin') {
+      const params = requestedBatchId ? [requestedBatchId] : [batchNumber]
+      const query = requestedBatchId
+        ? 'SELECT id, batch_number, visibility_mode FROM batches WHERE id = $1 LIMIT 1'
+        : 'SELECT id, batch_number, visibility_mode FROM batches WHERE LOWER(batch_number) = LOWER($1) ORDER BY created_at DESC'
+      const found = await pool.query(query, params)
+      if (!found.rowCount) return res.status(404).json({ error: 'Batch not found' })
+      if (!requestedBatchId && found.rowCount > 1) {
+        return res.status(400).json({ error: 'Multiple batches exist with this name. Please select the exact batch card again.' })
+      }
+      batch = found.rows[0]
     }
-    let interns = await internQueries.getInternsByBatch(batchNumber)
+
+    let interns = batch?.id
+      ? await internQueries.getInternsByBatchId(batch.id)
+      : await internQueries.getInternsByBatch(batchNumber)
+
     if (req.user.role === 'intern') {
-      const batchResult = await pool.query('SELECT visibility_mode FROM batches WHERE batch_number = $1', [batchNumber])
+      const batchResult = await pool.query('SELECT visibility_mode FROM batches WHERE id = $1', [batch.id])
       const mode = batchResult.rows[0]?.visibility_mode || 'intern_choice'
       if (mode === 'private') interns = interns.filter(i => i.id === req.user.intern_id)
       if (mode === 'intern_choice') interns = interns.filter(i => i.id === req.user.intern_id || i.profile_visible === true)
@@ -164,10 +186,27 @@ router.put('/:id', verifyToken, requireInternManagement('id'), async (req, res) 
       }
       if (req.user.role === 'admin') {
         const targetBatch = await pool.query(
-          'SELECT 1 FROM batches WHERE batch_number = $1 AND created_by = $2',
+          'SELECT id FROM batches WHERE LOWER(batch_number) = LOWER($1) AND created_by = $2 LIMIT 1',
           [batch_number, req.user.id]
         )
         if (!targetBatch.rowCount) return res.status(403).json({ error: 'Cannot move an intern to a batch you do not manage' })
+        req.body.batch_id = targetBatch.rows[0].id
+      } else if (req.user.role === 'super_admin') {
+        const current = await internQueries.getInternById(id)
+        if (req.body.batch_id) {
+          const targetBatch = await pool.query('SELECT id FROM batches WHERE id = $1 LIMIT 1', [req.body.batch_id])
+          if (!targetBatch.rowCount) return res.status(400).json({ error: 'Selected batch was not found' })
+          req.body.batch_id = targetBatch.rows[0].id
+        } else if (current?.batch_number?.toLowerCase() === String(batch_number).toLowerCase()) {
+          req.body.batch_id = current.batch_id
+        } else {
+          const targetBatch = await pool.query(
+            'SELECT id FROM batches WHERE LOWER(batch_number) = LOWER($1) ORDER BY created_at DESC',
+            [batch_number]
+          )
+          if (targetBatch.rowCount > 1) return res.status(400).json({ error: 'Multiple batches exist with this name. Select a specific batch before moving this intern.' })
+          req.body.batch_id = targetBatch.rows[0]?.id || null
+        }
       }
       if (status && !['pending', 'approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Invalid intern status' })
       if (name.length > 120 || college_name.length > 200 || dept.length > 120 || mail.length > 254 || number.length > 40) {
@@ -179,7 +218,7 @@ router.put('/:id', verifyToken, requireInternManagement('id'), async (req, res) 
 
       merged = {
         name, college_name, dept, year, sem, mail, number,
-        starting_date, ending_date, batch_number, status, profile_visible
+        starting_date, ending_date, batch_id: req.body.batch_id || null, batch_number, status, profile_visible
       }
     }
 

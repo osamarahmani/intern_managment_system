@@ -5,6 +5,7 @@ const adminQueries = require('../db/queries/admins')
 const { verifyToken, verifySuperAdmin } = require('../middleware/auth')
 const { sendAdminCredentials } = require('../utils/mailer')
 const logger = require('../utils/logger')
+const { isConfiguredSuperAdminEmail } = require('../utils/superAdminIdentity')
 const router = express.Router()
 
 router.get('/', verifyToken, verifySuperAdmin, async (req, res) => {
@@ -29,6 +30,9 @@ router.post('/', verifyToken, verifySuperAdmin, async (req, res) => {
   }
   if (!/^\S+@\S+\.\S+$/.test(normalizedEmail) || normalizedEmail.length > 254 || name.trim().length > 120) {
     return res.status(400).json({ error: 'Enter a valid name and email address' })
+  }
+  if (isConfiguredSuperAdminEmail(normalizedEmail)) {
+    return res.status(400).json({ error: 'This email is reserved for the Super Admin account' })
   }
 
   try {

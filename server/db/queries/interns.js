@@ -2,7 +2,7 @@ const pool = require('../pool')
 
 const getAllInterns = async () => {
   const result = await pool.query(
-    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE is_archived = false OR is_archived IS NULL ORDER BY created_at DESC'
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_id, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE is_archived = false OR is_archived IS NULL ORDER BY created_at DESC'
   )
   return result.rows
 }
@@ -10,10 +10,10 @@ const getAllInterns = async () => {
 const getInternsByAdmin = async (adminId, archived = false) => {
   const result = await pool.query(
     `SELECT i.id, i.name, i.college_name, i.dept, i.year, i.sem, i.mail, i.number,
-            i.starting_date, i.ending_date, i.batch_number, i.status, i.profile_visible,
+            i.starting_date, i.ending_date, i.batch_id, i.batch_number, i.status, i.profile_visible,
             i.created_at, i.is_archived, i.archived_at, i.intern_status,
             i.discontinued_reason, i.login_blocked, i.feedback_given_at
-     FROM interns i JOIN batches b ON b.batch_number = i.batch_number
+     FROM interns i JOIN batches b ON b.id = i.batch_id
      WHERE b.created_by = $1 AND COALESCE(i.is_archived, false) = $2
      ORDER BY i.created_at DESC`,
     [adminId, archived]
@@ -23,7 +23,7 @@ const getInternsByAdmin = async (adminId, archived = false) => {
 
 const getInternById = async (id) => {
   const result = await pool.query(
-    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE id = $1',
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_id, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE id = $1',
     [id]
   )
   return result.rows[0]
@@ -31,8 +31,16 @@ const getInternById = async (id) => {
 
 const getInternsByBatch = async (batchNumber, status = 'approved') => {
   const result = await pool.query(
-    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE batch_number = $1 AND status = $2 AND (is_archived = false OR is_archived IS NULL) ORDER BY created_at DESC',
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_id, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE batch_number = $1 AND status = $2 AND (is_archived = false OR is_archived IS NULL) ORDER BY created_at DESC',
     [batchNumber, status]
+  )
+  return result.rows
+}
+
+const getInternsByBatchId = async (batchId, status = 'approved') => {
+  const result = await pool.query(
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_id, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE batch_id = $1 AND status = $2 AND (is_archived = false OR is_archived IS NULL) ORDER BY created_at DESC',
+    [batchId, status]
   )
   return result.rows
 }
@@ -48,18 +56,18 @@ const getInternPhoto = async (id) => {
 const createIntern = async (data, db = pool) => {
   const {
     name, college_name, dept, year, sem, mail, number,
-    starting_date, ending_date, batch_number, photo, photo_mime_type
+    starting_date, ending_date, batch_id, batch_number, photo, photo_mime_type
   } = data
 
   const result = await db.query(
     `INSERT INTO interns
      (name, college_name, dept, year, sem, mail, number,
-      starting_date, ending_date, batch_number, photo, photo_mime_type, status, is_archived)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',false)
+      starting_date, ending_date, batch_id, batch_number, photo, photo_mime_type, status, is_archived)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending',false)
      RETURNING id`,
     [
       name, college_name, dept, year, sem, mail, number,
-      starting_date, ending_date, batch_number, photo, photo_mime_type
+      starting_date, ending_date, batch_id, batch_number, photo, photo_mime_type
     ]
   )
   return result.rows[0].id
@@ -68,7 +76,7 @@ const createIntern = async (data, db = pool) => {
 const updateIntern = async (id, data) => {
   const {
     name, college_name, dept, year, sem, mail, number,
-    starting_date, ending_date, batch_number, status, profile_visible
+    starting_date, ending_date, batch_id, batch_number, status, profile_visible
   } = data
 
   const db = await pool.connect()
@@ -77,9 +85,9 @@ const updateIntern = async (id, data) => {
     const result = await db.query(
       `UPDATE interns SET name=$1, college_name=$2, dept=$3, year=$4, sem=$5,
        mail=$6, number=$7, starting_date=$8, ending_date=$9,
-       batch_number=$10, status=$11, profile_visible=$12 WHERE id=$13 RETURNING *`,
+       batch_id=$10, batch_number=$11, status=$12, profile_visible=$13 WHERE id=$14 RETURNING *`,
       [name, college_name, dept, year, sem, String(mail).trim().toLowerCase(), number,
-        starting_date, ending_date, batch_number, status, profile_visible, id]
+        starting_date, ending_date, batch_id, batch_number, status, profile_visible, id]
     )
     if (result.rows[0]) {
       await db.query(
@@ -136,7 +144,7 @@ const restoreIntern = async (internId) => {
 
 const getArchivedInterns = async () => {
   const result = await pool.query(
-    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE is_archived = true ORDER BY archived_at DESC'
+    'SELECT id, name, college_name, dept, year, sem, mail, number, starting_date, ending_date, batch_id, batch_number, status, profile_visible, created_at, is_archived, archived_at, intern_status, discontinued_reason, login_blocked, feedback_given_at FROM interns WHERE is_archived = true ORDER BY archived_at DESC'
   )
   return result.rows
 }
@@ -171,6 +179,7 @@ module.exports = {
   getInternsByAdmin,
   getInternById,
   getInternsByBatch,
+  getInternsByBatchId,
   getInternPhoto,
   createIntern,
   updateIntern,

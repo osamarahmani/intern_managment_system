@@ -6,11 +6,17 @@ const persistSession = (data) => {
   authStorage.setItem('token', data.token)
   authStorage.setItem('role', data.role)
   authStorage.setItem('intern_id', data.intern_id || '')
+  authStorage.setItem('user_name', data.name || '')
+  authStorage.setItem('user_email', data.email || '')
+  authStorage.setItem('is_super_admin_owner', data.is_super_admin_owner ? 'true' : 'false')
 }
 
 export const getToken = () => authStorage.getItem('token')
 export const getRole = () => authStorage.getItem('role')
 export const getInternId = () => authStorage.getItem('intern_id')
+export const getUserName = () => authStorage.getItem('user_name')
+export const getUserEmail = () => authStorage.getItem('user_email')
+export const isSuperAdminOwner = () => authStorage.getItem('is_super_admin_owner') === 'true'
 
 let cachedLoginResult = null;
 
@@ -53,11 +59,15 @@ export const logout = () => {
   authStorage.removeItem('token')
   authStorage.removeItem('role')
   authStorage.removeItem('intern_id')
+  authStorage.removeItem('user_name')
+  authStorage.removeItem('user_email')
+  authStorage.removeItem('is_super_admin_owner')
   authStorage.removeItem('ims_admin_active_page')
   authStorage.removeItem('ims_intern_active_page')
   authStorage.removeItem('ims_super_admin_active_page')
   authStorage.removeItem('ims_admin_batch_view')
   authStorage.removeItem('ims_admin_selected_batch')
+  authStorage.removeItem('ims_admin_selected_batch_id')
   authStorage.removeItem('ims_admin_intern_tab')
   localStorage.removeItem('token')
   localStorage.removeItem('role')

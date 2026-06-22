@@ -6,7 +6,7 @@ const canManageIntern = async (user, internId) => {
   if (user.role !== 'admin') return false
   const result = await pool.query(
     `SELECT 1 FROM interns i
-     JOIN batches b ON b.batch_number = i.batch_number
+     JOIN batches b ON b.id = i.batch_id
      WHERE i.id = $1 AND b.created_by = $2`,
     [internId, user.id]
   )

@@ -9,8 +9,9 @@ export const getInternById = async (id, token = getToken()) => {
   return apiClient(`/api/interns/${id}`, {}, token)
 }
 
-export const getInternsByBatch = async (batchNumber, token = getToken()) => {
-  return apiClient(`/api/interns/batch/${batchNumber}`, {}, token)
+export const getInternsByBatch = async (batchNumber, token = getToken(), batchId = null) => {
+  const query = batchId ? `?batch_id=${encodeURIComponent(batchId)}` : ''
+  return apiClient(`/api/interns/batch/${encodeURIComponent(batchNumber)}${query}`, {}, token)
 }
 
 export const updateIntern = async (id, updatedFields, token = getToken()) => {
@@ -66,4 +67,3 @@ export const permanentDeleteIntern = async (id, token = getToken()) => {
 export const revokeDiscontinue = async (internId, token = getToken()) => {
   return await apiClient(`/api/interns/${internId}/revoke-discontinue`, { method: 'PUT' }, token)
 }
-

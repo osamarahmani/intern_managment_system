@@ -23,7 +23,7 @@ const runMigration = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.batches (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        batch_number text UNIQUE NOT NULL,
+        batch_number text NOT NULL,
         registration_key text NOT NULL,
         is_active boolean NOT NULL DEFAULT true,
         visibility_mode text NOT NULL DEFAULT 'intern_choice' CHECK (visibility_mode IN ('public', 'private', 'intern_choice')),
@@ -46,7 +46,8 @@ const runMigration = async () => {
         number text,
         starting_date date,
         ending_date date,
-        batch_number text REFERENCES public.batches(batch_number) ON DELETE SET NULL,
+        batch_id uuid REFERENCES public.batches(id) ON DELETE SET NULL,
+        batch_number text,
         status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
         profile_visible boolean NOT NULL DEFAULT true,
         photo bytea,
@@ -194,6 +195,7 @@ const runMigration = async () => {
     // Idempotent column additions for existing tables
     const colAdditions = [
       "ALTER TABLE public.batches ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL;",
+      "ALTER TABLE public.interns ADD COLUMN IF NOT EXISTS batch_id uuid REFERENCES public.batches(id) ON DELETE SET NULL;",
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name text;",
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email text UNIQUE;",
       "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password text;",
@@ -217,6 +219,21 @@ const runMigration = async () => {
       await pool.query(addCol)
     }
 
+    await pool.query(`
+      ALTER TABLE public.interns DROP CONSTRAINT IF EXISTS interns_batch_number_fkey;
+      ALTER TABLE public.batches DROP CONSTRAINT IF EXISTS batches_batch_number_key;
+      UPDATE public.interns i
+      SET batch_id = b.id
+      FROM public.batches b
+      WHERE i.batch_id IS NULL AND i.batch_number = b.batch_number;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_batches_owner_batch_number_unique
+        ON public.batches (created_by, lower(batch_number))
+        WHERE created_by IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_batches_unowned_batch_number_unique
+        ON public.batches (lower(batch_number))
+        WHERE created_by IS NULL;
+    `)
+
     // Role check constraint update for profiles (idempotent drops and adds)
     await pool.query(`
       ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
@@ -225,6 +242,7 @@ const runMigration = async () => {
 
     // Indexes
     await pool.query('CREATE INDEX IF NOT EXISTS idx_interns_batch_number ON public.interns(batch_number);')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_interns_batch_id ON public.interns(batch_id);')
     await pool.query('CREATE INDEX IF NOT EXISTS idx_interns_status ON public.interns(status);')
     await pool.query('CREATE INDEX IF NOT EXISTS idx_profiles_intern_id ON public.profiles(intern_id);')
     await pool.query('CREATE INDEX IF NOT EXISTS idx_users_intern_id ON public.users(intern_id);')

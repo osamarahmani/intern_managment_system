@@ -3,7 +3,7 @@ const pool = require('../pool')
 const getAllBatches = async () => {
   const result = await pool.query(
     `SELECT b.*, p.name AS mentor_name, p.email AS mentor_email,
-       (SELECT COUNT(*) FROM interns ia WHERE ia.batch_number = b.batch_number)::int AS total_intern_count,
+       (SELECT COUNT(*) FROM interns ia WHERE ia.batch_id = b.id)::int AS total_intern_count,
        COUNT(i.id)::int AS intern_count,
        COUNT(i.id) FILTER (WHERE COALESCE(i.intern_status, 'active') = 'active')::int AS active_intern_count,
        COUNT(i.id) FILTER (WHERE i.intern_status = 'completed')::int AS completed_intern_count,
@@ -12,7 +12,7 @@ const getAllBatches = async () => {
          AND COUNT(i.id) FILTER (WHERE i.intern_status = 'completed') = COUNT(i.id)) AS internship_completed
      FROM batches b
      LEFT JOIN profiles p ON b.created_by = p.id
-     LEFT JOIN interns i ON i.batch_number = b.batch_number AND i.status = 'approved'
+     LEFT JOIN interns i ON i.batch_id = b.id AND i.status = 'approved'
      WHERE b.is_archived = false OR b.is_archived IS NULL
      GROUP BY b.id, p.name, p.email
      ORDER BY b.created_at DESC`
@@ -23,7 +23,7 @@ const getAllBatches = async () => {
 const getBatchesByAdmin = async (profileId) => {
   const result = await pool.query(
     `SELECT b.*, p.name AS mentor_name, p.email AS mentor_email,
-       (SELECT COUNT(*) FROM interns ia WHERE ia.batch_number = b.batch_number)::int AS total_intern_count,
+       (SELECT COUNT(*) FROM interns ia WHERE ia.batch_id = b.id)::int AS total_intern_count,
        COUNT(i.id)::int AS intern_count,
        COUNT(i.id) FILTER (WHERE COALESCE(i.intern_status, 'active') = 'active')::int AS active_intern_count,
        COUNT(i.id) FILTER (WHERE i.intern_status = 'completed')::int AS completed_intern_count,
@@ -32,7 +32,7 @@ const getBatchesByAdmin = async (profileId) => {
          AND COUNT(i.id) FILTER (WHERE i.intern_status = 'completed') = COUNT(i.id)) AS internship_completed
      FROM batches b
      LEFT JOIN profiles p ON b.created_by = p.id
-     LEFT JOIN interns i ON i.batch_number = b.batch_number AND i.status = 'approved'
+     LEFT JOIN interns i ON i.batch_id = b.id AND i.status = 'approved'
      WHERE b.created_by = $1 AND (b.is_archived = false OR b.is_archived IS NULL)
      GROUP BY b.id, p.name, p.email
      ORDER BY b.created_at DESC`,
@@ -43,8 +43,34 @@ const getBatchesByAdmin = async (profileId) => {
 
 const getBatchByNumberAndKey = async (batchNumber, registrationKey) => {
   const result = await pool.query(
-    'SELECT * FROM batches WHERE batch_number = $1 AND registration_key = $2 AND is_active = true AND (is_archived = false OR is_archived IS NULL)',
+    'SELECT * FROM batches WHERE LOWER(batch_number) = LOWER($1) AND registration_key = $2 AND is_active = true AND (is_archived = false OR is_archived IS NULL) ORDER BY created_at DESC',
     [batchNumber, registrationKey]
+  )
+  if (result.rows.length > 1) {
+    const error = new Error('Registration key matches multiple batches. Use a unique registration key.')
+    error.code = 'AMBIGUOUS_BATCH_KEY'
+    throw error
+  }
+  return result.rows[0] || null
+}
+
+const getBatchByNumber = async (batchNumber) => {
+  const result = await pool.query(
+    'SELECT id, batch_number, created_by, is_archived FROM batches WHERE LOWER(batch_number) = LOWER($1) ORDER BY created_at DESC',
+    [batchNumber]
+  )
+  if (result.rows.length > 1) {
+    const error = new Error('Multiple batches exist with this name. Use batch_id.')
+    error.code = 'AMBIGUOUS_BATCH'
+    throw error
+  }
+  return result.rows[0] || null
+}
+
+const getBatchByNumberForOwner = async (batchNumber, profileId) => {
+  const result = await pool.query(
+    'SELECT id, batch_number, created_by, is_archived FROM batches WHERE LOWER(batch_number) = LOWER($1) AND created_by = $2 LIMIT 1',
+    [batchNumber, profileId]
   )
   return result.rows[0] || null
 }
@@ -100,7 +126,7 @@ const getArchivedBatches = async (profileId = null, includeAll = false) => {
       COUNT(i.id)::int AS intern_count
      FROM batches b
      LEFT JOIN profiles p ON b.created_by = p.id
-     LEFT JOIN interns i ON i.batch_number = b.batch_number
+     LEFT JOIN interns i ON i.batch_id = b.id
      WHERE b.is_archived = true ${ownerClause}
      GROUP BY b.id, p.name, p.email
      ORDER BY b.archived_at DESC`,
@@ -113,6 +139,8 @@ module.exports = {
   getAllBatches,
   getBatchesByAdmin,
   getBatchByNumberAndKey,
+  getBatchByNumber,
+  getBatchByNumberForOwner,
   createBatch,
   updateBatch,
   deleteBatch,

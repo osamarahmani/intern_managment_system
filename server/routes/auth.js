@@ -12,6 +12,7 @@ const logger = require('../utils/logger')
 const { issueAccessToken } = require('../utils/tokens')
 const { rateLimit, isValidImage } = require('../middleware/security')
 const { setAuthCookie, clearAuthCookie } = require('../utils/authCookie')
+const { isConfiguredSuperAdminEmail } = require('../utils/superAdminIdentity')
 const router = express.Router()
 
 const accountKey = req => `${req.ip}:${String(req.body?.email || '').trim().toLowerCase()}`
@@ -43,6 +44,10 @@ router.post('/login', loginLimit, async (req, res) => {
       logger.warn('auth.login', 'Invalid role for admin login', { email, role: user.role })
       return res.status(401).json({ error: 'Invalid credentials' })
     }
+    if (user.role === 'super_admin' && !isConfiguredSuperAdminEmail(user.email)) {
+      logger.warn('auth.login', 'Rejected non-canonical super admin account', { email })
+      return res.status(403).json({ error: 'This account is not the configured Super Admin' })
+    }
 
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) {
@@ -61,6 +66,9 @@ router.post('/login', loginLimit, async (req, res) => {
       return res.json({ 
         token: 'session',
         role: user.role, 
+        name: user.name || '',
+        email: user.email || email,
+        is_super_admin_owner: false,
         must_change_password: true 
       })
     }
@@ -72,7 +80,13 @@ router.post('/login', loginLimit, async (req, res) => {
     setAuthCookie(res, token)
 
     logger.success('auth.login', 'Admin login successful', { email, role: user.role })
-    res.json({ token: 'session', role: user.role })
+    res.json({
+      token: 'session',
+      role: user.role,
+      name: user.name || '',
+      email: user.email || email,
+      is_super_admin_owner: user.role === 'super_admin' && isConfiguredSuperAdminEmail(user.email)
+    })
   } catch (err) {
     logger.error('auth.login', 'Login failed with exception', { email, error: err.message })
     res.status(500).json({ error: 'Internal server error' })
@@ -265,7 +279,7 @@ router.post('/register', registrationLimit, upload.single('photo'), async (req, 
       await dbClient.query('BEGIN')
       internId = await internQueries.createIntern({
         name, college_name, dept, year, sem: parseInt(sem, 10), mail: normalizedMail, number,
-        starting_date, ending_date, batch_number, photo: photoBuffer,
+        starting_date, ending_date, batch_id: batch.id, batch_number: batch.batch_number, photo: photoBuffer,
         photo_mime_type: photoMimeType
       }, dbClient)
       await userQueries.createUser({

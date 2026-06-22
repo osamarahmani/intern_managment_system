@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { downloadWorkbook } from '../../utils/spreadsheetExport'
 import ApprovedInterns from '../admin/ApprovedInterns'
 import PendingApprovals from '../admin/PendingApprovals'
@@ -10,18 +10,23 @@ import { getAllAdmins, createAdmin, deleteAdmin } from '../../services/adminServ
 import { getAllInterns, approveIntern, rejectIntern, getInternsByBatch } from '../../services/internService'
 import { getProjectByInternId } from '../../services/projectService'
 import { getTasksByInternId } from '../../services/taskService'
+import { getUserEmail, getUserName, isSuperAdminOwner } from '../../services/authService'
 import useAutoRefresh from '../../hooks/useAutoRefresh'
 import { keepPreviousIfEqual } from '../../utils/stableState'
 
 const SUPER_ADMIN_ACTIVE_PAGE_KEY = 'ims_super_admin_active_page'
 
 const SuperAdminLayout = ({ onLogout }) => {
+  const superAdminName = getUserName() || 'Super Admin'
+  const superAdminEmail = getUserEmail()
+  const canonicalSuperAdmin = isSuperAdminOwner()
   const [activePage, setActivePage] = useState(() => sessionStorage.getItem(SUPER_ADMIN_ACTIVE_PAGE_KEY) || 'dashboard') // 'dashboard' | 'pending' | 'admins' | 'archived'
   const [batches, setBatches] = useState([])
   const [admins, setAdmins] = useState([])
   const [pendingInterns, setPendingInterns] = useState([])
   const [viewBatch, setViewBatch] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedAdminFilter, setSelectedAdminFilter] = useState('all')
   const [changingMentorBatchId, setChangingMentorBatchId] = useState(null)
   const [selectedMentorId, setSelectedMentorId] = useState('')
 
@@ -41,6 +46,9 @@ const SuperAdminLayout = ({ onLogout }) => {
   const [visibleKeyBatchId, setVisibleKeyBatchId] = useState(null)
   const [copiedBatchId, setCopiedBatchId] = useState(null)
   const [savedVisibility, setSavedVisibility] = useState({})
+  const dashboardLeftColumnRef = useRef(null)
+  const [dashboardRightHeight, setDashboardRightHeight] = useState(null)
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1440 : window.innerWidth))
 
   // Batch Summary Card states
   const [summaryBatch, setSummaryBatch] = useState(null)
@@ -68,6 +76,38 @@ const SuperAdminLayout = ({ onLogout }) => {
   }, [activePage])
 
   useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth)
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const isDashboardStacked = viewportWidth < 1180
+  const isDashboardMobile = viewportWidth < 760
+
+  useEffect(() => {
+    if (activePage !== 'dashboard' || viewBatch || isDashboardStacked || !dashboardLeftColumnRef.current) {
+      setDashboardRightHeight(null)
+      return undefined
+    }
+
+    const updateHeight = () => {
+      const height = dashboardLeftColumnRef.current?.getBoundingClientRect().height || 0
+      if (height > 0) setDashboardRightHeight(Math.round(height))
+    }
+
+    updateHeight()
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateHeight) : null
+    observer?.observe(dashboardLeftColumnRef.current)
+    window.addEventListener('resize', updateHeight)
+
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateHeight)
+    }
+  }, [activePage, viewBatch, isDashboardStacked, summaryBatch?.id, summaryStats, batchSuccess, batchError, adminSuccess, adminError])
+
+  useEffect(() => {
     fetchBatches()
     fetchAdmins()
     fetchPending()
@@ -85,9 +125,9 @@ const SuperAdminLayout = ({ onLogout }) => {
   // Fetch summary when summary batch changes
   useEffect(() => {
     if (summaryBatch) {
-      fetchBatchSummary(summaryBatch.batch_number)
+      fetchBatchSummary(summaryBatch.batch_number, false, summaryBatch.id)
     }
-  }, [summaryBatch?.batch_number])
+  }, [summaryBatch?.id, summaryBatch?.batch_number])
 
   const fetchBatches = async () => {
     try {
@@ -144,7 +184,7 @@ const SuperAdminLayout = ({ onLogout }) => {
     fetchBatches(),
     fetchAdmins(),
     fetchPending(),
-    summaryBatch ? fetchBatchSummary(summaryBatch.batch_number, true) : Promise.resolve()
+    summaryBatch ? fetchBatchSummary(summaryBatch.batch_number, true, summaryBatch.id) : Promise.resolve()
   ]), 10000)
 
   const handleExportAll = async () => {
@@ -186,10 +226,10 @@ const SuperAdminLayout = ({ onLogout }) => {
     }
   }
 
-  const fetchBatchSummary = async (batchNum, silent = false) => {
+  const fetchBatchSummary = async (batchNum, silent = false, batchId = null) => {
     if (!silent) setSummaryLoading(true)
     try {
-      const batchInterns = await getInternsByBatch(batchNum)
+      const batchInterns = await getInternsByBatch(batchNum, undefined, batchId)
       const safeInterns = batchInterns || []
       const internIds = safeInterns.map((i) => i.id)
 
@@ -447,7 +487,88 @@ const SuperAdminLayout = ({ onLogout }) => {
     const num = b.batch_number?.toLowerCase() || ''
     const mentor = b.mentor_name?.toLowerCase() || ''
     const q = searchTerm.toLowerCase()
-    return num.includes(q) || mentor.includes(q)
+    const matchesSearch = num.includes(q) || mentor.includes(q)
+    const matchesAdmin = selectedAdminFilter === 'all' || b.created_by === selectedAdminFilter
+    return matchesSearch && matchesAdmin
+  })
+
+  const platformTotals = {
+    admins: admins.length,
+    batches: batches.length,
+    totalStudents: batches.reduce((sum, batch) => sum + (batch.total_intern_count || 0), 0),
+    approvedInterns: batches.reduce((sum, batch) => sum + (batch.intern_count || 0), 0),
+    completedInterns: batches.reduce((sum, batch) => sum + (batch.completed_intern_count || 0), 0),
+    activeInterns: batches.reduce((sum, batch) => sum + (batch.active_intern_count || 0), 0),
+    discontinuedInterns: batches.reduce((sum, batch) => sum + (batch.discontinued_intern_count || 0), 0)
+  }
+
+  const superAdminBatches = batches.filter(batch => String(batch.mentor_email || '').toLowerCase() === String(superAdminEmail || '').toLowerCase())
+  const normalAdminBatches = batches.filter(batch => String(batch.mentor_email || '').toLowerCase() !== String(superAdminEmail || '').toLowerCase())
+
+  const summarizeBatches = (batchList) => ({
+    batches: batchList.length,
+    totalStudents: batchList.reduce((sum, batch) => sum + (batch.total_intern_count || 0), 0),
+    approvedInterns: batchList.reduce((sum, batch) => sum + (batch.intern_count || 0), 0),
+    activeInterns: batchList.reduce((sum, batch) => sum + (batch.active_intern_count || 0), 0),
+    completedInterns: batchList.reduce((sum, batch) => sum + (batch.completed_intern_count || 0), 0),
+    discontinuedInterns: batchList.reduce((sum, batch) => sum + (batch.discontinued_intern_count || 0), 0)
+  })
+
+  const superAdminTotals = summarizeBatches(superAdminBatches)
+  const normalAdminTotals = summarizeBatches(normalAdminBatches)
+
+  const adminTotals = admins.reduce((acc, admin) => {
+    const ownedBatches = batches.filter(batch => batch.created_by === admin.id)
+    acc[admin.id] = {
+      batches: ownedBatches.length,
+      totalStudents: ownedBatches.reduce((sum, batch) => sum + (batch.total_intern_count || 0), 0),
+      approvedInterns: ownedBatches.reduce((sum, batch) => sum + (batch.intern_count || 0), 0),
+      activeInterns: ownedBatches.reduce((sum, batch) => sum + (batch.active_intern_count || 0), 0),
+      completedInterns: ownedBatches.reduce((sum, batch) => sum + (batch.completed_intern_count || 0), 0),
+      discontinuedInterns: ownedBatches.reduce((sum, batch) => sum + (batch.discontinued_intern_count || 0), 0)
+    }
+    return acc
+  }, {})
+
+  const dashboardTwoColumnGrid = isDashboardStacked
+    ? '1fr'
+    : 'minmax(320px, 0.9fr) minmax(520px, 1.4fr)'
+  const dashboardStudentGrid = isDashboardMobile
+    ? '1fr'
+    : 'minmax(280px, 1fr) minmax(280px, 1fr)'
+  const normalAdminsGrid = isDashboardStacked
+    ? '1fr'
+    : 'minmax(180px, 1fr) repeat(5, minmax(90px, 0.7fr))'
+  const quickActionsGrid = isDashboardMobile
+    ? '1fr'
+    : 'repeat(2, minmax(0, 1fr))'
+  const quickActionCardStyle = {
+    background: '#FFFFFF',
+    padding: isDashboardMobile ? '16px' : '18px',
+    borderRadius: '12px',
+    border: '1px solid #E0E0E0',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: isDashboardMobile ? 'auto' : '318px',
+    boxSizing: 'border-box'
+  }
+  const actionStatusSlotStyle = {
+    minHeight: isDashboardMobile ? '0' : '38px',
+    marginBottom: '12px',
+    display: 'flex',
+    alignItems: 'stretch'
+  }
+  const actionMessageStyle = (type) => ({
+    background: type === 'success' ? '#E6F4EA' : '#FCE8E6',
+    color: type === 'success' ? '#137333' : '#C5221F',
+    padding: '9px 11px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: '500',
+    width: '100%',
+    boxSizing: 'border-box',
+    lineHeight: 1.35
   })
 
   // Styles matched from AdminLayout
@@ -520,10 +641,13 @@ const SuperAdminLayout = ({ onLogout }) => {
           </button>
           <button
             type="button"
-            onClick={() => setActivePage('admins')}
+            onClick={() => {
+              setSelectedAdminFilter('all')
+              setActivePage('admins')
+            }}
             style={activePage === 'admins' ? activeTabStyle : inactiveTabStyle}
           >
-            Admin Management
+            Admin Data
           </button>
           <button
             type="button"
@@ -565,17 +689,25 @@ const SuperAdminLayout = ({ onLogout }) => {
             )}
           </div>
 
-          <span style={{
+          <div style={{
             color: '#fff',
             borderRadius: '8px',
-            padding: '7px 14px',
-            fontSize: '13px',
-            fontWeight: 600,
+            padding: '6px 12px',
             fontFamily: "'Plus Jakarta Sans', sans-serif",
-            display: 'inline-block'
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: '2px',
+            background: 'rgba(255, 255, 255, 0.12)',
+            border: canonicalSuperAdmin ? '1px solid rgba(3, 218, 198, 0.7)' : '1px solid rgba(255, 255, 255, 0.3)'
           }}>
-            Super Admin Panel
-          </span>
+            <span style={{ fontSize: '13px', fontWeight: 800, lineHeight: 1.1 }}>
+              👑 {superAdminName}
+            </span>
+            <span style={{ fontSize: '10px', fontWeight: 600, opacity: 0.9, lineHeight: 1.1 }}>
+              {canonicalSuperAdmin ? 'Only Super Admin' : 'Super Admin'}{superAdminEmail ? ` • ${superAdminEmail}` : ''}
+            </span>
+          </div>
 
           <button
             type="button"
@@ -612,7 +744,7 @@ const SuperAdminLayout = ({ onLogout }) => {
         flexDirection: 'column'
       }}>
         {activePage === 'dashboard' && (
-          <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
             {viewBatch ? (
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
                 <button
@@ -630,12 +762,166 @@ const SuperAdminLayout = ({ onLogout }) => {
                 >
                   ← Back to Dashboard
                 </button>
-                <ApprovedInterns batchNumber={viewBatch.batch_number} />
+                <ApprovedInterns batchNumber={viewBatch.batch_number} batchId={viewBatch.id} />
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(460px, 1.5fr)', gap: '30px', alignItems: 'start', height: '100%', minHeight: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                  gap: '14px'
+                }}>
+                  {[
+                    ['Total Admins', platformTotals.admins, '👥', '#F0EEFF', '#3D35C4'],
+                    ['Total Batches', platformTotals.batches, '🗂️', '#E3F2FD', '#1565C0'],
+                    ['Total Students', platformTotals.totalStudents, '🎓', '#E8F5E9', '#2E7D32'],
+                    ['Approved Interns', platformTotals.approvedInterns, '✅', '#F3F0FF', '#3D35C4'],
+                    ['Active Interns', platformTotals.activeInterns, '🟢', '#E8F5E9', '#2E7D32'],
+                    ['Completed', platformTotals.completedInterns, '🏁', '#FFF3E0', '#E65100']
+                  ].map(([label, value, icon, bg, color]) => (
+                    <button
+                      type="button"
+                      key={label}
+                      onClick={() => {
+                        if (label === 'Total Admins') {
+                          setSelectedAdminFilter('all')
+                          setActivePage('admins')
+                        }
+                      }}
+                      style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E0E0E0',
+                      borderRadius: '14px',
+                      padding: '16px',
+                      boxShadow: '0 4px 18px rgba(0,0,0,0.035)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px'
+                      ,
+                      cursor: label === 'Total Admins' ? 'pointer' : 'default',
+                      textAlign: 'left',
+                      fontFamily: "'Plus Jakarta Sans', sans-serif"
+                    }}>
+                      <div style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '12px',
+                        background: bg,
+                        color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '20px',
+                        flexShrink: 0
+                      }}>
+                        {icon}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '24px', fontWeight: 800, color: '#212121', lineHeight: 1 }}>{value}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#757575', textTransform: 'uppercase', letterSpacing: '0.45px', marginTop: '4px' }}>{label}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: dashboardStudentGrid,
+                  gap: '16px'
+                }}>
+                  {[
+                    {
+                      title: 'Overall Student Data',
+                      subtitle: 'All students across Super Admin and every normal admin.',
+                      totals: platformTotals,
+                      accent: '#3D35C4',
+                      bg: 'linear-gradient(135deg, #F3F0FF 0%, #FFFFFF 100%)',
+                      icon: '🌐'
+                    },
+                    {
+                      title: 'Super Admin Student Data',
+                      subtitle: 'Students inside batches directly owned by Super Admin.',
+                      totals: superAdminTotals,
+                      accent: '#E65100',
+                      bg: 'linear-gradient(135deg, #FFF3E0 0%, #FFFFFF 100%)',
+                      icon: '👑'
+                    }
+                  ].map((section) => (
+                    <div key={section.title} style={{
+                      background: section.bg,
+                      border: `1px solid ${section.accent}22`,
+                      borderRadius: '16px',
+                      padding: '18px',
+                      boxShadow: '0 4px 18px rgba(0,0,0,0.035)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#212121' }}>
+                            {section.icon} {section.title}
+                          </h3>
+                          <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#757575' }}>{section.subtitle}</p>
+                        </div>
+                        <div style={{ fontSize: '30px', fontWeight: 900, color: section.accent, lineHeight: 1 }}>
+                          {section.totals.totalStudents}
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' }}>
+                        {[
+                          ['Batches', section.totals.batches],
+                          ['Approved', section.totals.approvedInterns],
+                          ['Active', section.totals.activeInterns],
+                          ['Completed', section.totals.completedInterns],
+                          ['Discontinued', section.totals.discontinuedInterns],
+                          ['Students', section.totals.totalStudents]
+                        ].map(([label, value]) => (
+                          <div key={label} style={{
+                            background: '#FFFFFF',
+                            border: '1px solid #EEEEEE',
+                            borderRadius: '10px',
+                            padding: '10px',
+                            minWidth: 0
+                          }}>
+                            <div style={{ fontSize: '18px', fontWeight: 900, color: section.accent, lineHeight: 1 }}>{value}</div>
+                            <div style={{ fontSize: '10px', fontWeight: 800, color: '#757575', textTransform: 'uppercase', letterSpacing: '0.35px', marginTop: '6px' }}>{label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E0E0E0',
+                  borderRadius: '14px',
+                  padding: '16px',
+                  display: 'grid',
+                  gridTemplateColumns: normalAdminsGrid,
+                  gap: '10px',
+                  alignItems: 'center',
+                  boxShadow: '0 4px 18px rgba(0,0,0,0.025)'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#212121' }}>Normal Admins Combined</div>
+                    <div style={{ fontSize: '12px', color: '#757575', marginTop: '3px' }}>All data excluding Super Admin-owned batches.</div>
+                  </div>
+                  {[
+                    ['Batches', normalAdminTotals.batches],
+                    ['Students', normalAdminTotals.totalStudents],
+                    ['Approved', normalAdminTotals.approvedInterns],
+                    ['Active', normalAdminTotals.activeInterns],
+                    ['Completed', normalAdminTotals.completedInterns]
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: '#FAFAFA', borderRadius: '10px', padding: '10px', border: '1px solid #EEEEEE' }}>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#1565C0', lineHeight: 1 }}>{value}</div>
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: '#757575', textTransform: 'uppercase', marginTop: '6px' }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: dashboardTwoColumnGrid, gap: isDashboardStacked ? '18px' : '24px', alignItems: 'start' }}>
                 {/* Left Column */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
+                <div ref={dashboardLeftColumnRef} style={{ display: 'flex', flexDirection: 'column', gap: '18px', minHeight: 0 }}>
                   {/* Card 1: Batch Summary Card */}
                   <div style={{
                     background: '#fff',
@@ -912,15 +1198,17 @@ const SuperAdminLayout = ({ onLogout }) => {
                     )}
                   </div>
 
+                  <div style={{ display: 'grid', gridTemplateColumns: quickActionsGrid, gap: '18px', alignItems: 'stretch' }}>
                   {/* Card 2: Provision New Batch */}
-                  <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Provision New Batch</h3>
-                    {batchSuccess && <div style={{ background: '#E6F4EA', color: '#137333', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{batchSuccess}</div>}
-                    {batchError && <div style={{ background: '#FCE8E6', color: '#C5221F', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{batchError}</div>}
-                    <form onSubmit={handleCreateBatch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={quickActionCardStyle}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#212121', marginBottom: '14px', marginTop: 0 }}>Provision New Batch</h3>
+                    <div style={actionStatusSlotStyle}>
+                      {batchSuccess ? <div style={actionMessageStyle('success')}>{batchSuccess}</div> : batchError ? <div style={actionMessageStyle('error')}>{batchError}</div> : null}
+                    </div>
+                    <form onSubmit={handleCreateBatch} style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Batch Number</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                           <input
                             type="text"
                             placeholder="BATCH NUMBER"
@@ -931,7 +1219,8 @@ const SuperAdminLayout = ({ onLogout }) => {
                             }}
                             required
                             style={{
-                              flex: 1,
+                              flex: '1 1 150px',
+                              minWidth: 0,
                               height: '40px',
                               padding: '0 12px',
                               border: '1px solid #E0E0E0',
@@ -1005,6 +1294,7 @@ const SuperAdminLayout = ({ onLogout }) => {
                         disabled={!batchNumber.trim() || !registrationKey.trim()}
                         style={{
                           height: '40px',
+                          marginTop: 'auto',
                           background: (batchNumber.trim() && registrationKey) ? '#3D35C4' : '#F5F5F5',
                           color: (batchNumber.trim() && registrationKey) ? '#FFFFFF' : '#BDBDBD',
                           border: 'none',
@@ -1020,11 +1310,12 @@ const SuperAdminLayout = ({ onLogout }) => {
                   </div>
 
                   {/* Card 3: Create Admin */}
-                  <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#212121', marginBottom: '16px', marginTop: 0 }}>Create Admin</h3>
-                    {adminSuccess && <div style={{ background: '#E6F4EA', color: '#137333', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{adminSuccess}</div>}
-                    {adminError && <div style={{ background: '#FCE8E6', color: '#C5221F', padding: '10px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px', fontWeight: '500' }}>{adminError}</div>}
-                    <form onSubmit={handleCreateAdmin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={quickActionCardStyle}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#212121', marginBottom: '14px', marginTop: 0 }}>Create Admin</h3>
+                    <div style={actionStatusSlotStyle}>
+                      {adminSuccess ? <div style={actionMessageStyle('success')}>{adminSuccess}</div> : adminError ? <div style={actionMessageStyle('error')}>{adminError}</div> : null}
+                    </div>
+                    <form onSubmit={handleCreateAdmin} style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <label style={{ fontSize: '12px', fontWeight: '600', color: '#212121' }}>Name</label>
                         <input
@@ -1063,6 +1354,7 @@ const SuperAdminLayout = ({ onLogout }) => {
                         type="submit"
                         style={{
                           height: '40px',
+                          marginTop: 'auto',
                           background: '#3D35C4',
                           color: '#FFFFFF',
                           border: 'none',
@@ -1075,24 +1367,35 @@ const SuperAdminLayout = ({ onLogout }) => {
                       </button>
                     </form>
                   </div>
+                  </div>
                 </div>
 
                 {/* Right Column: Registered Batches */}
-                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#212121', margin: 0 }}>Registered Batches ({batches.length})</h3>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ background: '#E8F5E9', color: '#2E7D32', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
-                          🟢 {internStatusCounts.active} Active
-                        </span>
-                        <span style={{ background: '#FFF3F3', color: '#B00020', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
-                          ⛔ {internStatusCounts.discontinued} Discontinued
-                        </span>
-                        <span style={{ background: '#F0EEFF', color: '#3D35C4', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
-                          🎓 {internStatusCounts.completed} Completed
+                <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1px solid #E6E6EF', boxShadow: '0 8px 28px rgba(61,53,196,0.06)', display: 'flex', flexDirection: 'column', minHeight: 0, height: !isDashboardStacked && dashboardRightHeight ? `${dashboardRightHeight}px` : 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#212121', margin: 0 }}>
+                          Batch Directory
+                        </h3>
+                        <span style={{
+                          background: '#F3F0FF',
+                          color: '#3D35C4',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          padding: '5px 10px',
+                          borderRadius: '999px',
+                          whiteSpace: 'nowrap',
+                          border: '1px solid #E2DEFF'
+                        }}>
+                          {filteredBatches.length} shown • {batches.length} total
                         </span>
                       </div>
+                      <span style={{ fontSize: '12px', color: '#757575', fontWeight: 500 }}>
+                        {selectedAdminFilter === 'all'
+                          ? 'All Super Admin and normal-admin batches in one clean view.'
+                          : `Showing batches for ${admins.find(admin => admin.id === selectedAdminFilter)?.name || 'selected admin'}.`}
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -1109,29 +1412,33 @@ const SuperAdminLayout = ({ onLogout }) => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
-                        fontFamily: "'Plus Jakarta Sans', sans-serif"
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        boxShadow: '0 6px 16px rgba(61,53,196,0.18)',
+                        whiteSpace: 'nowrap'
                       }}
                     >
-                      ⬇ Export All Batches
+                      Export All
                     </button>
                   </div>
                   <input
                     type="text"
-                    placeholder="Search by batch number or mentor name..."
+                    placeholder="Search batch or mentor..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     style={{
                       width: '100%',
-                      height: '40px',
-                      padding: '0 12px',
-                      border: '1px solid #E0E0E0',
-                      borderRadius: '6px',
+                      height: '42px',
+                      padding: '0 14px',
+                      border: '1px solid #E6E6EF',
+                      borderRadius: '10px',
                       fontSize: '14px',
-                      marginBottom: '20px',
-                      boxSizing: 'border-box'
+                      marginBottom: '14px',
+                      boxSizing: 'border-box',
+                      background: '#FAFAFC',
+                      outline: 'none'
                     }}
                   />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
                     {filteredBatches.map((batch) => {
                       const isSelected = summaryBatch && summaryBatch.id === batch.id
                       const totalInterns = batch.total_intern_count ?? batch.intern_count ?? 0
@@ -1140,14 +1447,15 @@ const SuperAdminLayout = ({ onLogout }) => {
                           key={batch.id}
                           onClick={() => setSummaryBatch(batch)}
                           style={{
-                            padding: isSelected ? '15px 19px' : '16px 20px',
-                            border: isSelected ? `2px solid ${batch.internship_completed ? '#2E7D32' : '#3D35C4'}` : `1px solid ${batch.internship_completed ? '#A5D6A7' : '#EEEEEE'}`,
-                            borderRadius: '10px',
-                            background: batch.internship_completed ? 'linear-gradient(135deg, #F4FBF5 0%, #E8F5E9 100%)' : '#FAFAFA',
+                            padding: isSelected ? '13px' : '14px',
+                            border: isSelected ? '2px solid #3D35C4' : '1px solid #ECECF3',
+                            borderRadius: '14px',
+                            background: isSelected ? '#F8F7FF' : '#FFFFFF',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '12px',
-                            cursor: 'pointer'
+                            gap: '10px',
+                            cursor: 'pointer',
+                            boxShadow: isSelected ? '0 8px 20px rgba(61,53,196,0.10)' : '0 2px 10px rgba(0,0,0,0.025)'
                           }}
                         >
                           {/* Top row — batch name + toggle only */}
@@ -1158,29 +1466,39 @@ const SuperAdminLayout = ({ onLogout }) => {
                             gap: '12px'
                           }}>
                             {/* Batch Number */}
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setViewBatch(batch)
-                              }}
-                              style={{
-                                fontSize: '20px',
-                                fontWeight: '700',
-                                color: '#3D35C4',
-                                cursor: 'pointer',
-                                textDecoration: 'underline'
-                              }}
-                            >
-                              {batch.batch_number}
-                            </span>
+                            <div style={{ minWidth: 0 }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setViewBatch(batch)
+                                }}
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  padding: 0,
+                                  fontSize: '18px',
+                                  fontWeight: '800',
+                                  color: '#24212F',
+                                  cursor: 'pointer',
+                                  textAlign: 'left'
+                                }}
+                              >
+                                {batch.batch_number}
+                              </button>
+                              <div style={{ fontSize: '12px', color: '#757575', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {batch.mentor_name || 'Unassigned'}{batch.mentor_email ? ` • ${batch.mentor_email}` : ''}
+                              </div>
+                            </div>
 
                             {batch.internship_completed && (
                               <span style={{
-                                background: '#2E7D32', color: '#FFFFFF', borderRadius: '12px',
-                                padding: '4px 9px', fontSize: '9px', fontWeight: 800,
-                                letterSpacing: '0.3px', whiteSpace: 'nowrap'
+                                background: '#E8F5E9', color: '#2E7D32', borderRadius: '999px',
+                                padding: '5px 9px', fontSize: '10px', fontWeight: 800,
+                                letterSpacing: '0.2px', whiteSpace: 'nowrap',
+                                border: '1px solid #C8E6C9'
                               }}>
-                                ✓ INTERNSHIP COMPLETED
+                                Completed
                               </span>
                             )}
 
@@ -1227,38 +1545,34 @@ const SuperAdminLayout = ({ onLogout }) => {
 
                           <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                            gap: '10px',
-                            padding: '12px',
-                            borderRadius: '10px',
-                            background: '#FFFFFF',
-                            border: '1px solid #EEEEEE'
+                            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                            gap: '8px'
                           }}>
-                            <div>
-                              <div style={{ fontSize: '11px', fontWeight: '700', color: '#757575', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                Total Students
+                            <div style={{ background: '#FAFAFC', border: '1px solid #EEEEF6', borderRadius: '10px', padding: '10px' }}>
+                              <div style={{ fontSize: '10px', fontWeight: '800', color: '#8A8A98', textTransform: 'uppercase', letterSpacing: '0.35px' }}>
+                                Students
                               </div>
-                              <div style={{ fontSize: '22px', fontWeight: '800', color: '#212121', marginTop: '2px' }}>
+                              <div style={{ fontSize: '20px', fontWeight: '900', color: '#212121', marginTop: '3px', lineHeight: 1 }}>
                                 {totalInterns}
                               </div>
                             </div>
-                            <div>
-                              <div style={{ fontSize: '11px', fontWeight: '700', color: '#757575', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                Approved Interns
+                            <div style={{ background: '#F3F0FF', border: '1px solid #E2DEFF', borderRadius: '10px', padding: '10px' }}>
+                              <div style={{ fontSize: '10px', fontWeight: '800', color: '#6A62C8', textTransform: 'uppercase', letterSpacing: '0.35px' }}>
+                                Approved
                               </div>
-                              <div style={{ fontSize: '22px', fontWeight: '800', color: '#3D35C4', marginTop: '2px' }}>
+                              <div style={{ fontSize: '20px', fontWeight: '900', color: '#3D35C4', marginTop: '3px', lineHeight: 1 }}>
                                 {batch.intern_count ?? 0}
                               </div>
                             </div>
-                            <div>
-                              <div style={{ fontSize: '11px', fontWeight: '700', color: '#757575', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                            <div style={{ background: '#F6FBF7', border: '1px solid #DDEFE1', borderRadius: '10px', padding: '10px' }}>
+                              <div style={{ fontSize: '10px', fontWeight: '800', color: '#2E7D32', textTransform: 'uppercase', letterSpacing: '0.35px' }}>
                                 Progress
                               </div>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-                                <span style={{ background: '#E8F5E9', color: '#2E7D32', borderRadius: '999px', padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '5px' }}>
+                                <span style={{ color: '#2E7D32', fontSize: '12px', fontWeight: '800' }}>
                                   {batch.active_intern_count ?? 0} Active
                                 </span>
-                                <span style={{ background: '#F0EEFF', color: '#3D35C4', borderRadius: '999px', padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}>
+                                <span style={{ color: '#3D35C4', fontSize: '12px', fontWeight: '800' }}>
                                   {batch.completed_intern_count ?? 0} Completed
                                 </span>
                               </div>
@@ -1537,6 +1851,7 @@ const SuperAdminLayout = ({ onLogout }) => {
                   </div>
                 </div>
               </div>
+              </div>
             )}
           </div>
         )}
@@ -1552,49 +1867,196 @@ const SuperAdminLayout = ({ onLogout }) => {
         )}
 
         {activePage === 'admins' && (
-          <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#212121', marginBottom: '20px', marginTop: 0 }}>Admin Management</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-              {admins.map((adm) => (
-                <div
-                  key={adm.id}
-                  style={{
-                    border: '1px solid #E0E0E0',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    gap: '12px'
-                  }}
-                >
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '16px', color: '#212121' }}>{adm.name || 'No Name'}</h4>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#757575' }}>{adm.email}</p>
-                    <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#BDBDBD' }}>
-                      Created: {new Date(adm.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', minHeight: 0 }}>
+            <div style={{
+              background: '#FFFFFF',
+              padding: '22px 24px',
+              borderRadius: '12px',
+              border: '1px solid #E0E0E0',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: '16px',
+              alignItems: 'center',
+              flexWrap: 'wrap'
+            }}>
+              <div>
+                <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#212121', margin: 0 }}>Admin Data Overview</h2>
+                <p style={{ fontSize: '13px', color: '#757575', margin: '6px 0 0 0' }}>
+                  Separate page for viewing each admin’s batches, students, and progress without changing the dashboard.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAdminFilter('all')
+                  setActivePage('dashboard')
+                }}
+                style={{
+                  background: '#F3F0FF',
+                  color: '#3D35C4',
+                  border: '1px solid #3D35C4',
+                  borderRadius: '8px',
+                  padding: '9px 14px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                ← Back to Dashboard
+              </button>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '14px'
+            }}>
+              {[
+                ['Total Admins', platformTotals.admins],
+                ['Total Batches', selectedAdminFilter === 'all' ? platformTotals.batches : adminTotals[selectedAdminFilter]?.batches || 0],
+                ['Total Students', selectedAdminFilter === 'all' ? platformTotals.totalStudents : adminTotals[selectedAdminFilter]?.totalStudents || 0],
+                ['Approved', selectedAdminFilter === 'all' ? platformTotals.approvedInterns : adminTotals[selectedAdminFilter]?.approvedInterns || 0],
+                ['Completed', selectedAdminFilter === 'all' ? platformTotals.completedInterns : adminTotals[selectedAdminFilter]?.completedInterns || 0]
+              ].map(([label, value]) => (
+                <div key={label} style={{ background: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '12px', padding: '16px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#3D35C4', lineHeight: 1 }}>{value}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#757575', textTransform: 'uppercase', letterSpacing: '0.45px', marginTop: '6px' }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.9fr) minmax(460px, 1.4fr)', gap: '22px', minHeight: 0 }}>
+              <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                  <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#212121', margin: 0 }}>Admins</h3>
                   <button
-                    onClick={() => handleDeleteAdmin(adm.id)}
+                    type="button"
+                    onClick={() => setSelectedAdminFilter('all')}
                     style={{
-                      alignSelf: 'flex-start',
-                      background: '#FF4444',
-                      color: '#FFFFFF',
                       border: 'none',
-                      borderRadius: '6px',
-                      padding: '6px 12px',
-                      fontSize: '13px',
-                      fontWeight: '600',
+                      borderRadius: '8px',
+                      padding: '7px 12px',
+                      background: selectedAdminFilter === 'all' ? '#3D35C4' : '#F5F5F5',
+                      color: selectedAdminFilter === 'all' ? '#FFFFFF' : '#616161',
+                      fontSize: '12px',
+                      fontWeight: 700,
                       cursor: 'pointer'
                     }}
                   >
-                    Delete
+                    All Admins
                   </button>
                 </div>
-              ))}
-              {admins.length === 0 && (
-                <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#757575', padding: '20px' }}>No admins found</div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: 'calc(100vh - 285px)', overflowY: 'auto', paddingRight: '3px' }}>
+                  {admins.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: '#757575', padding: '20px' }}>No admins found</div>
+                  ) : admins.map((adm) => {
+                    const totals = adminTotals[adm.id] || { batches: 0, totalStudents: 0, approvedInterns: 0, completedInterns: 0 }
+                    const selected = selectedAdminFilter === adm.id
+                    return (
+                      <div key={adm.id} style={{
+                        border: selected ? '2px solid #3D35C4' : '1px solid #E0E0E0',
+                        background: selected ? '#F3F0FF' : '#FAFAFA',
+                        borderRadius: '10px',
+                        padding: selected ? '13px' : '14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAdminFilter(adm.id)}
+                          style={{ border: 'none', background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                        >
+                          <h4 style={{ margin: 0, fontSize: '16px', color: '#212121' }}>{adm.name || 'No Name'}</h4>
+                          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#757575' }}>{adm.email}</p>
+                          <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#9E9E9E' }}>
+                            Created: {new Date(adm.created_at).toLocaleDateString()}
+                          </p>
+                        </button>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                          {[
+                            ['Batches', totals.batches],
+                            ['Students', totals.totalStudents],
+                            ['Approved', totals.approvedInterns],
+                            ['Done', totals.completedInterns]
+                          ].map(([label, value]) => (
+                            <div key={label} style={{ background: '#FFFFFF', borderRadius: '8px', padding: '7px', border: '1px solid #EEEEEE' }}>
+                              <div style={{ fontSize: '15px', fontWeight: 800, color: '#3D35C4', lineHeight: 1 }}>{value}</div>
+                              <div style={{ fontSize: '9px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', marginTop: '4px' }}>{label}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteAdmin(adm.id)}
+                          style={{
+                            alignSelf: 'flex-start',
+                            background: '#FF4444',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Delete Admin
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {selectedAdminFilter === 'all' ? (
+                <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E0E0E0', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', minHeight: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '12px', flexWrap: 'wrap' }}>
+                    <div>
+                      <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#212121', margin: 0 }}>All Admin Batches ({filteredBatches.length})</h3>
+                      <p style={{ fontSize: '12px', color: '#757575', margin: '4px 0 0 0' }}>Select an admin on the left to open their full workspace.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleExportAll}
+                      style={{ background: '#3D35C4', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ⬇ Export All
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 290px)', overflowY: 'auto', paddingRight: '3px' }}>
+                    {filteredBatches.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: '#757575', padding: '30px' }}>No batches found.</div>
+                    ) : filteredBatches.map((batch) => (
+                      <div key={batch.id} style={{ border: '1px solid #EEEEEE', borderRadius: '10px', padding: '14px', background: '#FAFAFA', display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setViewBatch(batch)}
+                            style={{ border: 'none', background: 'transparent', padding: 0, color: '#3D35C4', fontSize: '18px', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline' }}
+                          >
+                            {batch.batch_number}
+                          </button>
+                          <div style={{ fontSize: '12px', color: '#757575', marginTop: '4px' }}>{batch.mentor_name || 'Unassigned'} • {batch.mentor_email || 'No email'}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <span style={{ background: '#FFFFFF', border: '1px solid #EEEEEE', borderRadius: '999px', padding: '5px 9px', fontSize: '11px', fontWeight: 700 }}>{batch.total_intern_count || 0} Students</span>
+                          <span style={{ background: '#F0EEFF', color: '#3D35C4', borderRadius: '999px', padding: '5px 9px', fontSize: '11px', fontWeight: 700 }}>{batch.intern_count || 0} Approved</span>
+                          <span style={{ background: '#E8F5E9', color: '#2E7D32', borderRadius: '999px', padding: '5px 9px', fontSize: '11px', fontWeight: 700 }}>{batch.completed_intern_count || 0} Completed</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ minHeight: 0 }}>
+                  <ApprovedInterns
+                    adminId={selectedAdminFilter}
+                    adminName={admins.find(admin => admin.id === selectedAdminFilter)?.name || 'selected admin'}
+                  />
+                </div>
               )}
             </div>
           </div>

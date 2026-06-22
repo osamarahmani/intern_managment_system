@@ -19,7 +19,7 @@ router.get('/', verifyToken, async (req, res) => {
       const own = await pool.query(
         `SELECT b.id, b.batch_number, b.is_active, b.visibility_mode, b.is_archived,
                 b.created_at, b.archived_at
-         FROM batches b JOIN interns i ON i.batch_number = b.batch_number
+         FROM batches b JOIN interns i ON i.batch_id = b.id
          WHERE i.id = $1`,
         [req.user.intern_id]
       )
@@ -63,6 +63,12 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 
   try {
+    const existingBatch = await batchQueries.getBatchByNumberForOwner(batch_number.trim(), req.user.id)
+    if (existingBatch) {
+      logger.warn('batches.create', 'Batch number already exists', { batch_number })
+      return res.status(409).json({ error: 'This batch number already exists. Please use a different batch number.' })
+    }
+
     const batch = await batchQueries.createBatch(
       batch_number.trim(),
       registration_key.trim(),
@@ -71,7 +77,13 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     logger.success('batches.create', 'Batch created successfully', { batch_id: batch.id, batch_number })
     res.json(batch)
   } catch (err) {
-    logger.error('batches.create', 'Failed to create batch', { batch_number, error: err.message })
+    logger.error('batches.create', 'Failed to create batch', { batch_number, error: err.message, code: err.code, constraint: err.constraint })
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'This batch number already exists. Please use a different batch number.' })
+    }
+    if (err.code === '23503') {
+      return res.status(400).json({ error: 'This admin account is not linked correctly. Please log out and log in again.' })
+    }
     res.status(500).json({ error: 'Internal server error' })
   }
 })

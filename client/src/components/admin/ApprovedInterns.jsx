@@ -95,14 +95,16 @@ const formatDateForInput = (dateStr) => {
 
 const ADMIN_BATCH_VIEW_KEY = 'ims_admin_batch_view';
 const ADMIN_SELECTED_BATCH_KEY = 'ims_admin_selected_batch';
+const ADMIN_SELECTED_BATCH_ID_KEY = 'ims_admin_selected_batch_id';
 const ADMIN_INTERN_TAB_KEY = 'ims_admin_intern_tab';
 
-const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
+const ApprovedInterns = ({ batchNumber: initialBatchNumber, batchId: initialBatchId = null, adminId: scopedAdminId = null, adminName: scopedAdminName = '' }) => {
   // Navigation & View States
   const [activeView, setActiveView] = useState(() => initialBatchNumber ? 'batchDetails' : sessionStorage.getItem(ADMIN_BATCH_VIEW_KEY) || 'batches'); // 'batches' | 'batchDetails'
   const [selectedBatch, setSelectedBatch] = useState(() => {
     const savedBatchNumber = initialBatchNumber || sessionStorage.getItem(ADMIN_SELECTED_BATCH_KEY);
-    return savedBatchNumber ? { batch_number: savedBatchNumber } : null;
+    const savedBatchId = initialBatchId || sessionStorage.getItem(ADMIN_SELECTED_BATCH_ID_KEY);
+    return savedBatchNumber ? { id: savedBatchId || undefined, batch_number: savedBatchNumber } : null;
   });
   const [selectedIntern, setSelectedIntern] = useState(null);
 
@@ -226,10 +228,12 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   useEffect(() => {
     if (selectedBatch?.batch_number) {
       sessionStorage.setItem(ADMIN_SELECTED_BATCH_KEY, selectedBatch.batch_number);
+      if (selectedBatch.id) sessionStorage.setItem(ADMIN_SELECTED_BATCH_ID_KEY, selectedBatch.id);
     } else {
       sessionStorage.removeItem(ADMIN_SELECTED_BATCH_KEY);
+      sessionStorage.removeItem(ADMIN_SELECTED_BATCH_ID_KEY);
     }
-  }, [selectedBatch?.batch_number]);
+  }, [selectedBatch?.id, selectedBatch?.batch_number]);
 
   useEffect(() => {
     sessionStorage.setItem(ADMIN_INTERN_TAB_KEY, activeTab);
@@ -256,7 +260,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
           setActiveView(e.state.activeView);
         }
         if (e.state.selectedBatchId) {
-          const matched = batches.find(b => b.id === e.state.selectedBatchId || b.batch_number === e.state.selectedBatchNumber);
+      const matched = batches.find(b => b.id === e.state.selectedBatchId || b.batch_number === e.state.selectedBatchNumber);
           if (matched) {
             setSelectedBatch(matched);
           } else {
@@ -278,11 +282,11 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     }
   }, [batches]);
 
-  const fetchBatchSummary = async (batchNum, silent = false) => {
+  const fetchBatchSummary = async (batchNum, silent = false, batchId = null) => {
     if (!silent) setSummaryLoading(true);
     try {
       // 1. Fetch interns in batch
-      const batchInterns = await getInternsByBatch(batchNum);
+      const batchInterns = await getInternsByBatch(batchNum, getToken(), batchId);
 
       const safeInterns = batchInterns || [];
       const internIds = safeInterns.map(i => i.id);
@@ -384,13 +388,13 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     }
   };
 
-  const handleExport = async (batchNumber = null) => {
+  const handleExport = async (batchNumber = null, batchId = null) => {
     setExportLoading(true);
     try {
       // 1. Fetch interns
       let interns;
       if (batchNumber) {
-        interns = await getInternsByBatch(batchNumber);
+        interns = await getInternsByBatch(batchNumber, getToken(), batchId);
       } else {
         const all = await getAllInterns();
         interns = all.filter(i => i.status === 'approved');
@@ -468,9 +472,9 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
 
   useEffect(() => {
     if (summaryBatch) {
-      fetchBatchSummary(summaryBatch.batch_number);
+      fetchBatchSummary(summaryBatch.batch_number, false, summaryBatch.id);
     }
-  }, [summaryBatch?.batch_number]);
+  }, [summaryBatch?.id, summaryBatch?.batch_number]);
 
   // Helper Resets
   const resetProjectForm = () => {
@@ -498,7 +502,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
   // 2. Fetch interns reactively when the selected batch changes
   useEffect(() => {
     if (selectedBatch) {
-      fetchInternsForBatch(selectedBatch.batch_number);
+      fetchInternsForBatch(selectedBatch.batch_number, selectedBatch.id);
       setSelectedIntern(null); // Reset active intern panel
       setActiveTab('details');
     }
@@ -677,19 +681,21 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     try {
       const data = await getBatches();
       if (data) {
-        setBatches(previous => keepPreviousIfEqual(previous, data));
-        setSummaryBatch(prev => prev ? keepPreviousIfEqual(prev, data.find(batch => batch.id === prev.id) || prev) : prev);
-        setSelectedBatch(prev => prev ? keepPreviousIfEqual(prev, data.find(batch => batch.id === prev.id || batch.batch_number === prev.batch_number) || prev) : prev);
+        const visibleBatches = scopedAdminId ? data.filter(batch => batch.created_by === scopedAdminId) : data;
+        setBatches(previous => keepPreviousIfEqual(previous, visibleBatches));
+        setSummaryBatch(prev => prev ? keepPreviousIfEqual(prev, visibleBatches.find(batch => batch.id === prev.id) || prev) : prev);
+        setSelectedBatch(prev => prev ? keepPreviousIfEqual(prev, visibleBatches.find(batch => batch.id === prev.id || batch.batch_number === prev.batch_number) || prev) : prev);
         fetchInternStatusCounts();
         if (initialBatchNumber) {
-          const matched = data.find(b => b.batch_number === initialBatchNumber);
-          setSelectedBatch(matched || { batch_number: initialBatchNumber });
+          const matched = visibleBatches.find(b => b.id === initialBatchId || b.batch_number === initialBatchNumber);
+          setSelectedBatch(matched || { id: initialBatchId || undefined, batch_number: initialBatchNumber });
           setActiveView('batchDetails');
         } else {
           const savedBatchNumber = sessionStorage.getItem(ADMIN_SELECTED_BATCH_KEY);
+          const savedBatchId = sessionStorage.getItem(ADMIN_SELECTED_BATCH_ID_KEY);
           const savedView = sessionStorage.getItem(ADMIN_BATCH_VIEW_KEY);
           if (savedView === 'batchDetails' && savedBatchNumber) {
-            const matched = data.find(b => b.batch_number === savedBatchNumber);
+            const matched = visibleBatches.find(b => b.id === savedBatchId || b.batch_number === savedBatchNumber);
             if (matched) {
               setSelectedBatch(prev => prev ? prev : matched);
               setActiveView('batchDetails');
@@ -702,9 +708,9 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     }
   };
 
-  const fetchInternsForBatch = async (batchNum) => {
+  const fetchInternsForBatch = async (batchNum, batchId = null) => {
     try {
-      const data = await getInternsByBatch(batchNum);
+      const data = await getInternsByBatch(batchNum, getToken(), batchId);
       if (data) setInterns(previous => keepPreviousIfEqual(previous, data));
     } catch (err) {
       console.error('Error fetching interns:', err.message);
@@ -716,11 +722,11 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
     await fetchBatches()
 
     if (activeView === 'batches' && summaryBatch) {
-      await fetchBatchSummary(summaryBatch.batch_number, true)
+      await fetchBatchSummary(summaryBatch.batch_number, true, summaryBatch.id)
     }
 
     if (activeView === 'batchDetails' && selectedBatch) {
-      const latestInterns = await getInternsByBatch(selectedBatch.batch_number)
+      const latestInterns = await getInternsByBatch(selectedBatch.batch_number, getToken(), selectedBatch.id)
       setInterns(previous => keepPreviousIfEqual(previous, latestInterns || []))
       if (selectedIntern) {
         const latestSelected = (latestInterns || []).find(intern => intern.id === selectedIntern.id)
@@ -1138,7 +1144,14 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
       {activeView === 'batches' && (
         <div style={{ height: 'calc(100vh - 104px)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#111111', margin: 0 }}>Batch Management</h2>
+            <div>
+              <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#111111', margin: 0 }}>Batch Management</h2>
+              {scopedAdminId && (
+                <div style={{ fontSize: '13px', color: '#3D35C4', fontWeight: 700, marginTop: '4px' }}>
+                  Viewing full workspace for {scopedAdminName || 'selected admin'}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => !exportLoading && handleExport(null)}
@@ -1958,7 +1971,7 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button
                 type="button"
-                onClick={() => !exportLoading && handleExport(selectedBatch.batch_number)}
+                onClick={() => !exportLoading && handleExport(selectedBatch.batch_number, selectedBatch.id)}
                 disabled={exportLoading}
                 style={{
                   background: '#fff',
