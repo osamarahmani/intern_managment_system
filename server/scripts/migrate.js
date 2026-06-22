@@ -222,10 +222,63 @@ const runMigration = async () => {
     await pool.query(`
       ALTER TABLE public.interns DROP CONSTRAINT IF EXISTS interns_batch_number_fkey;
       ALTER TABLE public.batches DROP CONSTRAINT IF EXISTS batches_batch_number_key;
+    `)
+
+    // Backfill old intern rows only when a batch number maps to exactly one batch.
+    // If multiple admins have the same batch name, batch_id must be selected explicitly.
+    await pool.query(`
+      WITH unique_batches AS (
+        SELECT lower(batch_number) AS normalized_batch_number, MIN(id) AS batch_id
+        FROM public.batches
+        GROUP BY lower(batch_number)
+        HAVING COUNT(*) = 1
+      )
       UPDATE public.interns i
-      SET batch_id = b.id
-      FROM public.batches b
-      WHERE i.batch_id IS NULL AND i.batch_number = b.batch_number;
+      SET batch_id = ub.batch_id
+      FROM unique_batches ub
+      WHERE i.batch_id IS NULL
+        AND lower(i.batch_number) = ub.normalized_batch_number;
+    `)
+
+    // Render/live databases may already contain duplicate batch names for the same owner
+    // from older versions. Preserve all rows, keep the oldest name unchanged, and rename
+    // later duplicates before adding the scoped unique indexes.
+    const duplicateBatchGroups = await pool.query(`
+      SELECT created_by, lower(batch_number) AS normalized_batch_number, COUNT(*)::int AS duplicate_count
+      FROM public.batches
+      GROUP BY created_by, lower(batch_number)
+      HAVING COUNT(*) > 1;
+    `)
+
+    if (duplicateBatchGroups.rowCount > 0) {
+      console.warn(`Found ${duplicateBatchGroups.rowCount} duplicate batch-name group(s). Renaming later duplicates before unique-index migration.`)
+      await pool.query(`
+        WITH ranked_batches AS (
+          SELECT
+            id,
+            ROW_NUMBER() OVER (
+              PARTITION BY created_by, lower(batch_number)
+              ORDER BY created_at ASC NULLS LAST, id ASC
+            ) AS duplicate_rank
+          FROM public.batches
+        )
+        UPDATE public.batches b
+        SET batch_number = LEFT(TRIM(b.batch_number), 60) || '-' || b.id::text
+        FROM ranked_batches rb
+        WHERE b.id = rb.id
+          AND rb.duplicate_rank > 1;
+      `)
+
+      await pool.query(`
+        UPDATE public.interns i
+        SET batch_number = b.batch_number
+        FROM public.batches b
+        WHERE i.batch_id = b.id
+          AND i.batch_number IS DISTINCT FROM b.batch_number;
+      `)
+    }
+
+    await pool.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_batches_owner_batch_number_unique
         ON public.batches (created_by, lower(batch_number))
         WHERE created_by IS NOT NULL;
