@@ -33,34 +33,15 @@ const InternProfile = ({ internData }) => {
   if (!internData) return null;
 
   return (
-    <div style={{
-      display: 'flex',
-      width: '100%',
-      minHeight: 'calc(100vh - 130px)',
-      background: '#FFFFFF',
-      borderRadius: '12px',
-      border: '1px solid #E0E0E0',
-      overflow: 'hidden'
-    }}>
+    <div className="profile-wrapper">
       {/* Left purple panel */}
-      <div style={{
-        width: '280px',
-        flexShrink: 0,
-        background: '#3D35C4',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        padding: '40px 24px'
-      }}>
-        {/* Avatar */}
+      <div className="profile-sidebar">
         <InternAvatar
           internId={internData.id}
           name={internData.name}
           size={120}
           photoBust={internData._photoBust || ''}
-          style={{
-            border: '3px solid rgba(255,255,255,0.3)'
-          }}
+          style={{ border: '3px solid rgba(255,255,255,0.3)' }}
         />
         <p style={{color:'#FFFFFF', fontSize:'18px', fontWeight:'500', marginTop:'16px', textAlign: 'center'}}>
           {internData.name}
@@ -69,24 +50,13 @@ const InternProfile = ({ internData }) => {
           {internData.dept}
         </p>
         <span style={{
-          border: '1px solid rgba(255,255,255,0.5)',
-          color: '#FFFFFF', fontSize: '11px',
+          border: '1px solid rgba(255,255,255,0.5)', color: '#FFFFFF', fontSize: '11px',
           padding: '3px 12px', borderRadius: '4px', marginTop: '8px'
         }}>INTERN</span>
 
-        {/* Internship Timeline — moved into sidebar */}
         {countdown && (
-          <div style={{
-            marginTop: '28px',
-            paddingTop: '20px',
-            borderTop: '1px solid rgba(255,255,255,0.2)',
-            width: '100%',
-            textAlign: 'center'
-          }}>
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.6)',
-              textTransform: 'uppercase', letterSpacing: '0.5px'
-            }}>
+          <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.2)', width: '100%', textAlign: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Internship Timeline
             </span>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '10px' }}>
@@ -103,37 +73,18 @@ const InternProfile = ({ internData }) => {
           </div>
         )}
 
-        {/* View Feedback Button — moved into sidebar */}
         {feedback && (
           <div style={{ marginTop: '20px', width: '100%', textAlign: 'center' }}>
             <button
-              type="button"
-              onClick={() => setShowFeedbackModal(true)}
-              style={{
-                background: '#03DAC6',
-                color: '#000',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '10px 20px',
-                fontSize: '13px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                width: '100%'
-              }}
-            >
-              ⭐ View Feedback
-            </button>
+              type="button" onClick={() => setShowFeedbackModal(true)}
+              style={{ background: '#03DAC6', color: '#000', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', width: '100%' }}
+            >⭐ View Feedback</button>
           </div>
         )}
       </div>
 
-      {/* Right details — takes all remaining space */}
-      <div style={{
-        flex: 1,
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        alignContent: 'start'
-      }}>
+      {/* Right details */}
+      <div className="profile-details-grid">
         {[
           ['College Name', internData.college_name || internData.collegeName],
           ['Department', internData.dept],
@@ -144,19 +95,9 @@ const InternProfile = ({ internData }) => {
           ['Starting Date', formatDate(internData.starting_date)],
           ['Ending Date', formatDate(internData.ending_date)]
         ].map(([label, value], i) => (
-          <div key={i} style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid #F0F0F0',
-            borderRight: i % 2 === 0 ? '1px solid #F0F0F0' : 'none'
-          }}>
-            <p style={{
-              fontSize: '11px', color: '#9E9E9E',
-              textTransform: 'uppercase', letterSpacing: '0.06em',
-              marginBottom: '4px'
-            }}>{label}</p>
-            <p style={{
-              fontSize: '14px', fontWeight: '500', color: '#212121'
-            }}>{value || '—'}</p>
+          <div key={i} className="profile-grid-item">
+            <p style={{ fontSize: '11px', color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>{label}</p>
+            <p style={{ fontSize: '14px', fontWeight: '500', color: '#212121' }}>{value || '—'}</p>
           </div>
         ))}
       </div>
