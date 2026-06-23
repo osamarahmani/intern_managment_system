@@ -3329,185 +3329,198 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
         <div
           onClick={() => setShowExitFeedbackModal(false)}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
             zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '16px', boxSizing: 'border-box'
+            padding: '24px', boxSizing: 'border-box'
           }}
         >
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '580px',
+              background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '800px',
               maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-              boxShadow: '0 24px 80px rgba(0,0,0,0.25)', overflow: 'hidden'
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif'
             }}
           >
             {/* Header */}
             <div style={{
-              padding: '20px 24px', borderBottom: '1px solid #F0F0F0',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              background: 'linear-gradient(135deg, #F3F0FF 0%, #E8F5E9 100%)',
-              flexShrink: 0
+              padding: '28px 36px', borderBottom: '1px solid #E2E8F0',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+              background: '#ffffff', flexShrink: 0
             }}>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Exit Feedback</div>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#212121' }}>{selectedIntern?.name}</h3>
+                <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '600', color: '#0F172A', letterSpacing: '-0.5px' }}>
+                  {selectedIntern?.name || 'Intern Name'}
+                </h3>
+                <div style={{ fontSize: '15px', fontWeight: 500, color: '#64748B', marginTop: '6px' }}>
+                  Exit Feedback Report
+                </div>
               </div>
               <button type="button" onClick={() => setShowExitFeedbackModal(false)}
-                style={{ background: 'rgba(0,0,0,0.06)', border: 'none', borderRadius: '50%', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', color: '#555', flexShrink: 0 }}>
-                ✕
+                style={{
+                  background: 'transparent', border: 'none', width: '36px', height: '36px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#64748B', borderRadius: '8px', transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#F1F5F9'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
               </button>
             </div>
 
             {/* Body */}
-            <div style={{ overflowY: 'auto', flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ overflowY: 'auto', flex: 1, padding: '36px', display: 'flex', flexDirection: 'column', gap: '40px' }}>
               {exitFeedbackLoading ? (
-                <div style={{ textAlign: 'center', color: '#9E9E9E', padding: '60px 0', fontSize: '14px' }}>
-                  <div style={{ fontSize: '28px', marginBottom: '12px' }}>⏳</div>
-                  Loading feedback...
+                <div style={{ textAlign: 'center', color: '#64748B', padding: '80px 0', fontSize: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                  </svg>
+                  Loading feedback data...
+                  <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
                 </div>
               ) : !exitFeedbackData ? (
-                <div style={{ textAlign: 'center', color: '#9E9E9E', padding: '60px 0' }}>
-                  <div style={{ fontSize: '36px', marginBottom: '12px' }}>📭</div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#757575' }}>No feedback submitted yet</div>
-                  <div style={{ fontSize: '12px', color: '#BDBDBD', marginTop: '6px' }}>This intern hasn't filled the exit feedback form.</div>
+                <div style={{ textAlign: 'center', color: '#64748B', padding: '80px 0' }}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '16px' }}>
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <div style={{ fontSize: '18px', fontWeight: 500, color: '#334155' }}>No feedback submitted</div>
+                  <div style={{ fontSize: '15px', color: '#94A3B8', marginTop: '6px' }}>This intern has not completed their exit survey yet.</div>
                 </div>
               ) : (
                 <>
-                  {/* Submitted date pill */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#757575', background: '#F5F5F5', padding: '4px 12px', borderRadius: '20px' }}>
-                      📅 Submitted {new Date(exitFeedbackData.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </span>
-                  </div>
-
-                  {/* Score cards row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    {/* Satisfaction */}
-                    <div style={{ background: 'linear-gradient(135deg, #F3F0FF, #E8E6FF)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#7B6FD8', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>Satisfaction</div>
-                      <div style={{ fontSize: '32px', fontWeight: 800, color: '#3D35C4', lineHeight: 1 }}>{exitFeedbackData.satisfaction_score}</div>
-                      <div style={{ fontSize: '12px', color: '#9E9E9E', marginTop: '4px' }}>out of 10</div>
-                      <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '10px', flexWrap: 'wrap' }}>
-                        {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
-                          <div key={n} style={{
-                            width: '14px', height: '6px', borderRadius: '3px',
-                            background: n <= exitFeedbackData.satisfaction_score ? '#3D35C4' : '#E0E0E0'
-                          }} />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Recommendation */}
-                    <div style={{ background: 'linear-gradient(135deg, #E8F5E9, #C8E6C9)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#388E3C', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>Recommendation</div>
-                      <div style={{ fontSize: '32px', fontWeight: 800, color: '#2E7D32', lineHeight: 1 }}>{exitFeedbackData.recommend_score}</div>
-                      <div style={{ fontSize: '12px', color: '#9E9E9E', marginTop: '4px' }}>out of 5</div>
-                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginTop: '10px' }}>
-                        {[1, 2, 3, 4, 5].map(n => (
-                          <span key={n} style={{ fontSize: '16px', color: n <= exitFeedbackData.recommend_score ? '#2E7D32' : '#E0E0E0' }}>★</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Mentor Support */}
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Mentor Support</div>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#F0EEFF', border: '1px solid #C5B8FF', borderRadius: '10px', padding: '8px 16px' }}>
-                      <span style={{ fontSize: '16px' }}>
-                        {exitFeedbackData.mentor_support === 'exceptionally' ? '🌟' : exitFeedbackData.mentor_support === 'very' ? '👍' : exitFeedbackData.mentor_support === 'moderately' ? '🤝' : exitFeedbackData.mentor_support === 'slightly' ? '🙂' : '😐'}
-                      </span>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#3D35C4' }}>
-                        {exitFeedbackData.mentor_support.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} Supportive
+                  {/* Top Metrics Row */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Core Metrics
+                      </h4>
+                      <span style={{ fontSize: '14px', fontWeight: 500, color: '#64748B' }}>
+                        Submitted: <span style={{ color: '#334155' }}>{new Date(exitFeedbackData.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                       </span>
                     </div>
-                  </div>
 
-                  {/* Learning Areas */}
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Learning Areas</div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {(exitFeedbackData.learning_areas || []).map(area => (
-                        <span key={area} style={{
-                          background: '#E8F5E9', color: '#2E7D32', border: '1px solid #A5D6A7',
-                          padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600
-                        }}>
-                          ✓ {area.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                        </span>
-                      ))}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                      {/* Satisfaction */}
+                      <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', padding: '24px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#64748B', marginBottom: '12px' }}>Overall Satisfaction</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                          <span style={{ fontSize: '36px', fontWeight: 700, color: '#0F172A', lineHeight: 1 }}>{exitFeedbackData.satisfaction_score}</span>
+                          <span style={{ fontSize: '16px', color: '#94A3B8', fontWeight: 500 }}>/ 10</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '3px', marginTop: '16px' }}>
+                          {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                            <div key={n} style={{
+                              flex: 1, height: '6px', borderRadius: '3px',
+                              background: n <= exitFeedbackData.satisfaction_score ? '#4F46E5' : '#F1F5F9'
+                            }} />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Recommendation */}
+                      <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', padding: '24px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#64748B', marginBottom: '12px' }}>Likelihood to Recommend</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                          <span style={{ fontSize: '36px', fontWeight: 700, color: '#0F172A', lineHeight: 1 }}>{exitFeedbackData.recommend_score}</span>
+                          <span style={{ fontSize: '16px', color: '#94A3B8', fontWeight: 500 }}>/ 5</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '16px' }}>
+                          {Array.from({ length: 5 }, (_, i) => i + 1).map(n => (
+                            <div key={n} style={{
+                              flex: 1, height: '6px', borderRadius: '3px',
+                              background: n <= exitFeedbackData.recommend_score ? '#10B981' : '#F1F5F9'
+                            }} />
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Aspect Ratings */}
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Aspect Ratings</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {[
-                        { key: 'rating_clarity', label: 'Clarity of expectations & goals', },
-                        { key: 'rating_resources', label: 'Access to resources & tools', },
-                        { key: 'rating_worklife', label: 'Work-life balance', },
-                        { key: 'rating_culture', label: 'Team culture integration', }
-                      ].map(({ key, label, icon }) => {
-                        const val = exitFeedbackData[key]
-                        const labels = ['', 'Poor', 'Fair', 'Good', 'Excellent']
-                        const colors = ['', '#B00020', '#E65100', '#1565C0', '#2E7D32']
-                        const bgs = ['', '#FFEBEE', '#FFF3E0', '#E3F2FD', '#E8F5E9']
-                        return (
-                          <div key={key} style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            padding: '10px 14px', background: '#FAFAFA', borderRadius: '8px',
-                            border: '1px solid #F0F0F0'
-                          }}>
-                            <span style={{ fontSize: '13px', color: '#424242', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              {label}
-                            </span>
-                            <span style={{
-                              fontSize: '12px', fontWeight: 700, padding: '3px 10px',
-                              borderRadius: '20px', background: bgs[val], color: colors[val]
+                  {/* Program Details */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                    {/* Mentor Support & Learning Areas */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#64748B', marginBottom: '12px' }}>Mentor Support Level</div>
+                        <div style={{ display: 'inline-flex', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '10px 16px', fontSize: '15px', fontWeight: 500, color: '#334155' }}>
+                          {exitFeedbackData.mentor_support.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#64748B', marginBottom: '12px' }}>Key Learning Areas</div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {(exitFeedbackData.learning_areas || []).map(area => (
+                            <span key={area} style={{
+                              background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0',
+                              padding: '6px 12px', borderRadius: '6px', fontSize: '14px', fontWeight: 500
                             }}>
-                              {labels[val]}
+                              {area.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                             </span>
-                          </div>
-                        )
-                      })}
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Aspect Ratings */}
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#64748B', marginBottom: '16px' }}>Program Aspects Evaluation</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#E2E8F0', border: '1px solid #E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
+                        {[
+                          { key: 'rating_clarity', label: 'Clarity of expectations & goals' },
+                          { key: 'rating_resources', label: 'Access to resources & tools' },
+                          { key: 'rating_worklife', label: 'Work-life balance' },
+                          { key: 'rating_culture', label: 'Team culture integration' }
+                        ].map(({ key, label }) => {
+                          const val = exitFeedbackData[key];
+                          const labels = ['', 'Poor', 'Fair', 'Good', 'Excellent'];
+
+                          return (
+                            <div key={key} style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              padding: '16px 20px', background: '#ffffff'
+                            }}>
+                              <span style={{ fontSize: '15px', color: '#334155', fontWeight: 500 }}>
+                                {label}
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <span style={{ fontSize: '15px', fontWeight: 600, color: '#0F172A', minWidth: '80px', textAlign: 'right' }}>
+                                  {labels[val] || 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Testimonial */}
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Testimonial</div>
-                    <div style={{
-                      background: 'linear-gradient(135deg, #F8F7FF, #F0EEFF)',
-                      border: '1px solid #D1C9FF', borderRadius: '12px', padding: '16px 18px',
-                      fontSize: '14px', color: '#212121', lineHeight: 1.8,
-                      fontStyle: 'italic', position: 'relative'
-                    }}>
-                      <span style={{ fontSize: '32px', color: '#C5B8FF', lineHeight: 0.5, verticalAlign: 'middle', marginRight: '6px' }}>"</span>
-                      {exitFeedbackData.testimonial}
-                      <span style={{ fontSize: '32px', color: '#C5B8FF', lineHeight: 0.5, verticalAlign: 'middle', marginLeft: '4px' }}>"</span>
+                  {/* Qualitative Feedback */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div style={{ borderLeft: '4px solid #4F46E5', paddingLeft: '20px', background: '#F8FAFC', padding: '20px', borderRadius: '0 12px 12px 0' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#64748B', marginBottom: '10px' }}>Intern Testimonial</div>
+                      <div style={{ fontSize: '16px', color: '#1E293B', lineHeight: 1.7, fontStyle: 'italic' }}>
+                        "{exitFeedbackData.testimonial}"
+                      </div>
+                      <div style={{ marginTop: '16px', fontSize: '14px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        Consent: <span style={{ color: '#334155' }}>
+                          {exitFeedbackData.photo_consent === 'both' ? 'Public (Name + Testimonial)' :
+                            exitFeedbackData.photo_consent === 'anonymous' ? 'Anonymous Use Only' :
+                              'Private (Do Not Use)'}
+                        </span>
+                      </div>
                     </div>
-                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '11px', color: '#9E9E9E' }}>Consent:</span>
-                      <span style={{
-                        fontSize: '11px', fontWeight: 700, padding: '2px 10px', borderRadius: '20px',
-                        background: exitFeedbackData.photo_consent === 'both' ? '#E8F5E9' : exitFeedbackData.photo_consent === 'anonymous' ? '#FFF8E1' : '#FFEBEE',
-                        color: exitFeedbackData.photo_consent === 'both' ? '#2E7D32' : exitFeedbackData.photo_consent === 'anonymous' ? '#F57F17' : '#B00020'
-                      }}>
-                        {exitFeedbackData.photo_consent === 'both' ? '✓ Name + Testimonial allowed' : exitFeedbackData.photo_consent === 'anonymous' ? '◑ Anonymous use only' : '✕ Private — do not use'}
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Improvement */}
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Suggested Improvement</div>
-                    <div style={{
-                      background: '#FFFDE7', border: '1px solid #FFF176',
-                      borderRadius: '12px', padding: '14px 16px',
-                      fontSize: '13px', color: '#424242', lineHeight: 1.7
-                    }}>
-                      💡 {exitFeedbackData.improvement}
+                    <div style={{ borderLeft: '4px solid #F59E0B', paddingLeft: '20px', paddingRight: '20px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#64748B', marginBottom: '10px' }}>Suggested Improvements</div>
+                      <div style={{ fontSize: '16px', color: '#334155', lineHeight: 1.7 }}>
+                        {exitFeedbackData.improvement || "No suggestions provided."}
+                      </div>
                     </div>
                   </div>
                 </>
@@ -3515,12 +3528,16 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber }) => {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '16px 24px', borderTop: '1px solid #F0F0F0', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+            <div style={{ padding: '20px 36px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
               <button type="button" onClick={() => setShowExitFeedbackModal(false)}
                 style={{
-                  height: '38px', padding: '0 24px', background: '#3D35C4', color: '#fff',
-                  border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer'
-                }}>
+                  height: '42px', padding: '0 28px', background: '#ffffff', color: '#0F172A',
+                  border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '15px', fontWeight: '600',
+                  cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#F1F5F9'}
+                onMouseOut={(e) => e.currentTarget.style.background = '#ffffff'}
+              >
                 Close
               </button>
             </div>
