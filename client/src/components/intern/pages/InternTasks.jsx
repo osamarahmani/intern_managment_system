@@ -3,94 +3,35 @@ import { formatDate } from '../../../utils/formatDate'
 import { getTaskNotes, saveTaskNote, getSubTasksByTaskId, updateSubTaskStatus } from '../../../services/taskService'
 import { getToken } from '../../../services/authService'
 
-const thStyle = {
-  padding: '10px 16px',
-  fontSize: '12px',
-  fontWeight: '500',
-  color: '#757575',
-  textAlign: 'left',
-  borderBottom: '1px solid #E0E0E0',
-  borderRight: '1px solid #F0F0F0',
-  whiteSpace: 'nowrap'
-};
-
-const tdStyle = {
-  padding: '10px 16px',
-  fontSize: '13px',
-  color: '#212121',
-  borderBottom: '1px solid #F0F0F0',
-  borderRight: '1px solid #F0F0F0'
-};
-
-const sectionHeading = {
-  padding: '10px 16px',
-  fontSize: '12px',
-  fontWeight: '500',
-  color: '#9E9E9E',
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
-  borderBottom: '1px solid #E0E0E0',
-  borderTop: '1px solid #E0E0E0'
-};
-
-const inProgressBadge = {
-  background: '#E8F4FD',
-  color: '#1565C0',
-  border: '1px solid #1565C0',
-  padding: '2px 8px',
-  borderRadius: '4px',
-  fontSize: '11px',
-  fontWeight: '700',
-  textTransform: 'uppercase'
-};
-
-const completedBadge = {
-  background: '#E8F5E9',
-  color: '#2E7D32',
-  border: '1px solid #2E7D32',
-  padding: '2px 8px',
-  borderRadius: '4px',
-  fontSize: '11px',
-  fontWeight: '700',
-  textTransform: 'uppercase'
-};
-
-const upcomingBadge = {
-  background: '#FFF3E0',
-  color: '#E65100',
-  border: '1px solid #E65100',
-  padding: '2px 8px',
-  borderRadius: '4px',
-  fontSize: '11px',
-  fontWeight: '700',
-  textTransform: 'uppercase'
+// Helper to get the correct YYYY-MM-DD strictly in the user's local timezone
+const getLocalToday = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
   const [activeStatusTab, setActiveStatusTab] = useState('not_started')
   const [expandedTaskId, setExpandedTaskId] = useState(null)
+  
+  // Track tasks where the user clicked "Completed" but hasn't picked a date yet
+  const [pendingCompleted, setPendingCompleted] = useState({})
+  const [submissionDates, setSubmissionDates] = useState({})
+  
+  // Track sub-items
   const [subTaskLists, setSubTaskLists] = useState({})
   const [updatingSubTask, setUpdatingSubTask] = useState({})
   const [taskNotes, setTaskNotes] = useState({})
   const [noteInputs, setNoteInputs] = useState({})
   const [savingNote, setSavingNote] = useState({})
-  const [selectedStatus, setSelectedStatus] = useState({})
-  const [submissionDates, setSubmissionDates] = useState({})
-
-  useEffect(() => {
-    const statusMap = {}
-    const dateMap = {}
-    tasks.forEach(t => {
-      statusMap[t.id] = t.status || 'not_started'
-      dateMap[t.id] = t.submission_date || ''
-    })
-    setSelectedStatus(statusMap)
-    setSubmissionDates(dateMap)
-  }, [tasks])
 
   const handleToggleExpand = async (taskId) => {
     const isOpening = expandedTaskId !== taskId
     setExpandedTaskId(isOpening ? taskId : null)
+    
+    // Fetch notes and subtasks when expanding
     if (isOpening) {
       if (!taskNotes[taskId]) {
         try {
@@ -115,9 +56,9 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
         ...prev,
         [taskId]: (prev[taskId] || []).map(s => s.id === subtaskId ? { ...s, status: newStatus } : s)
       }))
-      // If backend auto-completed the parent task, reflect it
-      if (result.parentAutoCompleted) {
-        onUpdateTaskStatus(taskId, 'completed', new Date().toISOString().split('T')[0])
+      // If backend auto-completed the parent task, reflect it in the UI using today's local date
+      if (result && result.parentAutoCompleted) {
+        onUpdateTaskStatus(taskId, 'completed', getLocalToday())
       }
     } catch (err) {
       alert('Failed to update subtask: ' + err.message)
@@ -171,10 +112,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0px' }}>
 
       {/* Status Tabs */}
-      <div style={{
-        display: 'flex', borderBottom: '2px solid #E0E0E0',
-        background: '#fff', paddingLeft: '8px'
-      }}>
+      <div className="tasks-status-tabs">
         {STATUS_TABS.map(tab => {
           const isActive = activeStatusTab === tab.key
           const color = tab.key === 'completed' ? '#2E7D32' : tab.key === 'in_progress' ? '#1565C0' : '#E65100'
@@ -182,7 +120,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
             <button
               key={tab.key}
               type="button"
-              onClick={() => { setActiveStatusTab(tab.key); setExpandedTaskId(null) }}
+              onClick={() => { setActiveStatusTab(tab.key); setExpandedTaskId(null); }}
               style={{
                 padding: '12px 20px', fontSize: '13px', fontWeight: isActive ? '700' : '500',
                 color: isActive ? color : '#9E9E9E',
@@ -209,33 +147,32 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
       {/* Empty state for tab */}
       {filteredTasks.length === 0 && (
         <div style={{ padding: '48px', textAlign: 'center', color: '#BDBDBD', fontSize: '13px', fontStyle: 'italic' }}>
-          No {STATUS_TABS.find(t => t.key === activeStatusTab)?.label.toLowerCase()} tasks.
+          No {STATUS_TABS.find(t => t.key === activeStatusTab)?.label.toLowerCase()} tasks in this view.
         </div>
       )}
 
       {filteredTasks.map((task, index) => {
-        const isExpanded = expandedTaskId === task.id
-        const status = selectedStatus[task.id] || task.status || 'not_started'
-        const notes = taskNotes[task.id] || []
+        const isExpanded = expandedTaskId === task.id;
+        const notes = taskNotes[task.id] || [];
+        
+        // True status from Database
+        const currentStatus = task.status || 'not_started';
+        // Status to show on the Buttons (Overrides DB status if user is currently picking a date)
+        const displayStatus = pendingCompleted[task.id] ? 'completed' : currentStatus;
 
-        const statusColor = status === 'completed' ? '#2E7D32' : status === 'in_progress' ? '#1565C0' : '#E65100'
-        const statusBg = status === 'completed' ? '#E8F5E9' : status === 'in_progress' ? '#E8F4FD' : '#FFF3E0'
-        const statusBorder = status === 'completed' ? '#2E7D32' : status === 'in_progress' ? '#1565C0' : '#E65100'
-        const statusLabel = status === 'completed' ? 'COMPLETED' : status === 'in_progress' ? 'IN PROGRESS' : 'NOT STARTED'
+        const statusColor = currentStatus === 'completed' ? '#2E7D32' : currentStatus === 'in_progress' ? '#1565C0' : '#E65100'
+        const statusBg = currentStatus === 'completed' ? '#E8F5E9' : currentStatus === 'in_progress' ? '#E8F4FD' : '#FFF3E0'
+        const statusBorder = currentStatus === 'completed' ? '#2E7D32' : currentStatus === 'in_progress' ? '#1565C0' : '#E65100'
+        const statusLabel = currentStatus === 'completed' ? 'COMPLETED' : currentStatus === 'in_progress' ? 'IN PROGRESS' : 'NOT STARTED'
 
         return (
           <div key={task.id} style={{ borderBottom: '1px solid #F0F0F0' }}>
             {/* Task Row Header - clickable to expand */}
             <div
+              className="task-row-header"
               onClick={() => handleToggleExpand(task.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '14px',
-                padding: '14px 20px', cursor: 'pointer',
-                background: isExpanded ? '#F8F7FF' : '#FFFFFF',
-                transition: 'background 0.15s'
-              }}
+              style={{ background: isExpanded ? '#F8F7FF' : '#FFFFFF' }}
             >
-              {/* Index number badge */}
               <div style={{
                 width: '28px', height: '28px', borderRadius: '50%',
                 background: '#3D35C4', color: '#fff',
@@ -243,17 +180,14 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                 fontSize: '12px', fontWeight: '700', flexShrink: 0
               }}>{index + 1}</div>
 
-              {/* Task title */}
-              <span style={{ flex: 1, fontSize: '14px', fontWeight: '500', color: '#212121' }}>
+              <span className="task-title-text">
                 {task.title}
               </span>
 
-              {/* Expected date */}
               <span style={{ fontSize: '12px', color: '#9E9E9E', whiteSpace: 'nowrap', marginRight: '12px' }}>
                 {formatDate(task.expected_date)}
               </span>
 
-              {/* Status badge */}
               <span style={{
                 fontSize: '10px', fontWeight: '700', padding: '3px 8px',
                 borderRadius: '4px', border: `1px solid ${statusBorder}`,
@@ -261,7 +195,6 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                 whiteSpace: 'nowrap', marginRight: '8px'
               }}>{statusLabel}</span>
 
-              {/* Expand chevron */}
               <span style={{
                 fontSize: '16px', color: '#9E9E9E',
                 transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -271,9 +204,9 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
 
             {/* Expanded Panel */}
             {isExpanded && (
-              <div style={{ padding: '16px 20px 20px 62px', background: '#FAFAFA', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="task-expanded-panel">
 
-                {/* Task description if any */}
+                {/* Task description */}
                 {task.description && (
                   <p style={{ margin: 0, fontSize: '13px', color: '#555', lineHeight: 1.6 }}>{task.description}</p>
                 )}
@@ -283,66 +216,82 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Update Status
                   </span>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div className="task-update-row">
                     {['not_started', 'in_progress', 'completed'].map(s => (
                       <button
                         key={s}
                         type="button"
-                        onClick={e => {
-                          e.stopPropagation()
-                          setSelectedStatus(prev => ({ ...prev, [task.id]: s }))
-                          if (s !== 'completed') {
-                            onUpdateTaskStatus(task.id, s, null)
+                        onClick={() => {
+                          if (s === 'completed') {
+                            // Show Date Picker (Empty, forcing them to pick)
+                            setPendingCompleted(prev => ({ ...prev, [task.id]: true }));
+                          } else {
+                            // Hide Date Picker and instantly update to Not Started / In Progress
+                            setPendingCompleted(prev => ({ ...prev, [task.id]: false }));
+                            onUpdateTaskStatus(task.id, s, null);
                           }
                         }}
                         style={{
                           height: '32px', padding: '0 14px', borderRadius: '6px', fontSize: '12px',
                           fontWeight: '600', cursor: 'pointer', border: '1px solid',
-                          background: status === s ? (s === 'completed' ? '#2E7D32' : s === 'in_progress' ? '#1565C0' : '#E65100') : '#F5F5F5',
-                          color: status === s ? '#fff' : '#757575',
-                          borderColor: status === s ? 'transparent' : '#E0E0E0'
+                          background: displayStatus === s ? (s === 'completed' ? '#2E7D32' : s === 'in_progress' ? '#1565C0' : '#E65100') : '#F5F5F5',
+                          color: displayStatus === s ? '#fff' : '#757575',
+                          borderColor: displayStatus === s ? 'transparent' : '#E0E0E0'
                         }}
                       >
                         {s === 'not_started' ? 'Not Started' : s === 'in_progress' ? 'In Progress' : 'Completed'}
                       </button>
                     ))}
 
-                    {/* Submission date + confirm — only when completed is selected */}
-                    {status === 'completed' && task.status !== 'completed' && (
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '4px' }}>
+                    {/* Submission date + confirm — Appears only when "Completed" is clicked but not yet submitted */}
+                    {displayStatus === 'completed' && currentStatus !== 'completed' && (
+                      <div 
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '4px', flexWrap: 'wrap' }}
+                        onClick={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
+                      >
                         <input
                           type="date"
-                          max={new Date().toISOString().split('T')[0]}
                           value={submissionDates[task.id] || ''}
                           onChange={e => {
-                            e.stopPropagation()
-                            setSubmissionDates(prev => ({ ...prev, [task.id]: e.target.value }))
+                            setSubmissionDates(prev => ({ ...prev, [task.id]: e.target.value }));
                           }}
-                          onClick={e => e.stopPropagation()}
-                          style={{ height: '32px', padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: '6px', fontSize: '12px' }}
+                          style={{ 
+                            height: '36px', padding: '0 10px', border: '1px solid #E0E0E0', 
+                            borderRadius: '6px', fontSize: '14px', fontFamily: 'inherit',
+                            background: '#fff', color: '#212121', minWidth: '130px', cursor: 'pointer',
+                            touchAction: 'manipulation',
+                            WebkitAppearance: 'none',
+                          }}
                         />
                         <button
                           type="button"
-                          onClick={e => {
-                            e.stopPropagation()
-                            const date = submissionDates[task.id]
-                            if (!date) { alert('Please select a submission date.'); return }
-                            const today = new Date().toISOString().split('T')[0]
-                            if (date > today) { alert('Submission date cannot be a future date.'); return }
-                            onUpdateTaskStatus(task.id, 'completed', date)
+                          onClick={() => {
+                            const date = submissionDates[task.id];
+                            if (!date) { 
+                              alert('Please select a completion date from the calendar.'); 
+                              return; 
+                            }
+                            if (date > getLocalToday()) { 
+                              alert('Completion date cannot be in the future.'); 
+                              return; 
+                            }
+                            onUpdateTaskStatus(task.id, 'completed', date);
+                            setPendingCompleted(prev => ({ ...prev, [task.id]: false }));
                           }}
                           style={{
-                            height: '32px', padding: '0 14px', background: '#03DAC6',
+                            height: '36px', padding: '0 18px', background: '#03DAC6',
                             color: '#000', border: 'none', borderRadius: '6px',
-                            fontWeight: '700', fontSize: '12px', cursor: 'pointer'
+                            fontWeight: '700', fontSize: '13px', cursor: 'pointer',
+                            touchAction: 'manipulation',
                           }}
                         >Mark Done</button>
                       </div>
                     )}
 
-                    {/* Already completed — show submission date */}
-                    {task.status === 'completed' && task.submission_date && (
-                      <span style={{ fontSize: '12px', color: '#2E7D32', marginLeft: '4px' }}>
+                    {/* Already completed in DB — show finalized submission date */}
+                    {currentStatus === 'completed' && task.submission_date && (
+                      <span style={{ fontSize: '12px', color: '#2E7D32', marginLeft: '4px', fontWeight: '600' }}>
                         ✓ Submitted on {formatDate(task.submission_date)}
                       </span>
                     )}
@@ -361,10 +310,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {notes.map((n, i) => (
-                        <div key={i} style={{
-                          padding: '10px 12px', background: '#FFFDE7',
-                          borderRadius: '6px', border: '1px solid #FFF9C4'
-                        }}>
+                        <div key={i} style={{ padding: '10px 12px', background: '#FFFDE7', borderRadius: '6px', border: '1px solid #FFF9C4' }}>
                           <p style={{ margin: 0, fontSize: '13px', color: '#444', lineHeight: 1.6 }}>{n.note}</p>
                         </div>
                       ))}
@@ -377,7 +323,6 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                       placeholder="Add a note about your progress..."
                       value={noteInputs[task.id] || ''}
                       onChange={e => setNoteInputs(prev => ({ ...prev, [task.id]: e.target.value }))}
-                      onClick={e => e.stopPropagation()}
                       rows={2}
                       style={{
                         flex: 1, padding: '8px 10px', border: '1px solid #E0E0E0',
@@ -387,7 +332,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                     />
                     <button
                       type="button"
-                      onClick={e => { e.stopPropagation(); handleSaveNote(task.id) }}
+                      onClick={() => handleSaveNote(task.id)}
                       disabled={savingNote[task.id]}
                       style={{
                         height: '36px', padding: '0 16px', background: '#3D35C4',
@@ -401,7 +346,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                   </div>
                 </div>
 
-                {/* Sub Tasks (read-only for intern) */}
+                {/* Sub Tasks */}
                 {subTaskLists[task.id] && subTaskLists[task.id].length > 0 && (
                   <div>
                     <p style={{ margin: '0 0 8px 0', fontSize: '11px', fontWeight: 700, color: '#9E9E9E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -412,17 +357,8 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                         const subColor = sub.status === 'completed' ? '#2E7D32' : sub.status === 'in_progress' ? '#1565C0' : '#E65100'
                         const subBg = sub.status === 'completed' ? '#E8F5E9' : sub.status === 'in_progress' ? '#E3F2FD' : '#FFF3E0'
                         return (
-                          <div key={sub.id} style={{
-                            display: 'flex', alignItems: 'center', gap: '10px',
-                            padding: '10px 12px', background: '#FAFAFA',
-                            borderRadius: '6px', border: '1px solid #F0F0F0'
-                          }}>
-                            <span style={{
-                              width: '18px', height: '18px', borderRadius: '50%',
-                              background: '#E0E0E0', color: '#757575',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: '9px', fontWeight: 700, flexShrink: 0
-                            }}>{i + 1}</span>
+                          <div key={sub.id} className="task-subtask-item">
+                            <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#E0E0E0', color: '#757575', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 700, flexShrink: 0 }}>{i + 1}</span>
                             <div style={{ flex: 1 }}>
                               <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#212121' }}>{sub.title}</p>
                               {sub.description && (
@@ -432,10 +368,7 @@ const InternTasks = ({ tasks, onUpdateTaskStatus }) => {
                             {sub.expected_date && (
                               <span style={{ fontSize: '10px', color: '#9E9E9E', whiteSpace: 'nowrap' }}>{formatDate(sub.expected_date)}</span>
                             )}
-                            <span style={{
-                              fontSize: '9px', fontWeight: 700, padding: '2px 8px',
-                              borderRadius: '4px', background: subBg, color: subColor, whiteSpace: 'nowrap'
-                            }}>
+                            <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: subBg, color: subColor, whiteSpace: 'nowrap' }}>
                               {sub.status.replace('_', ' ').toUpperCase()}
                             </span>
                             <div style={{ display: 'flex', gap: '4px' }}>

@@ -68,7 +68,8 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
         return false;
       });
 
-      if (visibleMates.length > 0) {
+      // ONLY auto-select if on desktop. If mobile, keep it null so the list shows first.
+      if (visibleMates.length > 0 && window.innerWidth > 768) {
         setSelectedTeammate(visibleMates[0]);
       }
     } catch (err) {
@@ -206,25 +207,9 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      gap: '16px',
-      padding: '24px',
-      boxSizing: 'border-box',
-      width: '100%',
-      minHeight: '100%'
-    }}>
-      {/* Left Panel: Sidebar Teammates List */}
-      <div style={{
-        width: '260px',
-        minWidth: '260px',
-        background: '#fff',
-        borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden'
-      }}>
+    <div className="directory-wrapper">
+      {/* Left Panel: Sidebar Teammates List - Hidden on mobile if someone is selected */}
+      <div className={`directory-sidebar ${selectedTeammate ? 'mobile-hidden' : ''}`}>
         {/* Header Container */}
         <div style={{ borderBottom: '1px solid #F0F0F0' }}>
           {/* Header Texts */}
@@ -288,9 +273,6 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
           {!isPrivateByAdmin && visibleTeammates.map((mate) => {
             const isSelected = selectedTeammate && selectedTeammate.id === mate.id;
             const isOwnRow = mate.id === internId;
-            const initials = mate.name
-              ? mate.name.split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase()
-              : 'IN';
             const projTitle = projectsMap[mate.id];
 
             return (
@@ -347,27 +329,23 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
         </div>
       </div>
 
-      {/* Right Panel: Content Section */}
-      <div style={{
-        flex: 1,
-        background: '#fff',
-        borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden'
-      }}>
+      {/* Right Panel: Content Section - Hidden on mobile if no one is selected */}
+      <div className={`directory-content ${!selectedTeammate ? 'mobile-hidden' : ''}`}>
+        
+        {/* Mobile Back Button */}
+        {selectedTeammate && (
+          <button className="mobile-back-btn" onClick={() => setSelectedTeammate(null)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back to Teammates
+          </button>
+        )}
+
         {isPrivateByAdmin ? (
           /* Blocked state for private visibility mode */
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flex: 1,
-            padding: '40px',
-            textAlign: 'center'
-          }}>
+          <div className="empty-selection-state">
             <span style={{ fontSize: '40px', marginBottom: '12px' }}>🔒</span>
             <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#757575', margin: '0 0 8px 0' }}>
               Profiles Unavailable
@@ -379,11 +357,7 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
         ) : selectedTeammate ? (
           <>
             {/* Tabs Row */}
-            <div style={{
-              display: 'flex',
-              borderBottom: '1px solid #E0E0E0',
-              padding: '0 24px'
-            }}>
+            <div className="directory-tabs-row" style={{ marginTop: '8px' }}>
               {[
                 { tab: 'details', label: 'Details' },
                 { tab: 'project', label: 'Project' },
@@ -827,17 +801,8 @@ const BatchDirectory = ({ internId, internName, avatarUrl }) => {
             </div>
           </>
         ) : (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flex: 1,
-            padding: '40px',
-            textAlign: 'center',
-            color: '#9E9E9E'
-          }}>
-            No teammates found in this batch.
+          <div className="empty-selection-state hide-on-mobile">
+            Select a teammate from the list to view their profile.
           </div>
         )}
       </div>
