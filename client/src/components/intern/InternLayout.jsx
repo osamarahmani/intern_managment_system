@@ -6,7 +6,7 @@ import { getTasksByInternId, updateTask } from '../../services/taskService';
 import './InternLayout.css';
 import InternAvatar from '../InternAvatar';
 
-// We import subpages directly
+// Import subpages
 import InternProfilePage from './pages/InternProfile';
 import InternProjectPage from './pages/InternProject';
 import InternTasksPage from './pages/InternTasks';
@@ -17,9 +17,11 @@ const InternLayout = ({ onLogout }) => {
   const [internData, setInternData] = useState(null);
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [activePage, setActivePage] = useState('profile'); // 'profile' | 'project' | 'tasks' | 'directory' | 'exit-feedback'
+  const [activePage, setActivePage] = useState('profile');
   const [loading, setLoading] = useState(true);
-
+  
+  // Mobile Menu State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!window.history.state || window.history.state.activePage !== activePage) {
@@ -83,63 +85,40 @@ const InternLayout = ({ onLogout }) => {
     }
   };
 
-  const handleLogoutClick = () => {
-    onLogout();
-  };
-
-  const activeTabStyle = {
-    background: 'rgba(255, 255, 255, 0.2)',
-    color: '#fff',
-    borderRadius: '8px',
-    padding: '7px 16px',
-    fontSize: '14px',
-    fontWeight: 600,
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    border: 'none',
-    cursor: 'pointer',
-    outline: 'none'
-  };
-
-  const inactiveTabStyle = {
-    background: 'transparent',
-    color: 'rgba(255, 255, 255, 0.7)',
-    borderRadius: '8px',
-    padding: '7px 16px',
-    fontSize: '14px',
-    fontWeight: 500,
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    border: 'none',
-    cursor: 'pointer',
-    outline: 'none',
-    transition: 'background 0.2s, color 0.2s'
+  const handleTabClick = (tabId) => {
+    setActivePage(tabId);
+    setIsMobileMenuOpen(false); // Close drawer on mobile after selection
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      width: '100vw',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
+    <div className="app-layout-wrapper">
       {/* Top Header Bar */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 100,
-        height: '56px',
-        background: '#3D35C4',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 28px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-        boxSizing: 'border-box'
-      }}>
-        {/* Left side — Navigation tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <header className="app-top-header">
+        
+        {/* Mobile Hamburger Button */}
+        <button 
+          className="mobile-hamburger-btn"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Toggle navigation menu"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            {isMobileMenuOpen ? (
+              <>
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </>
+            ) : (
+              <>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </>
+            )}
+          </svg>
+        </button>
+
+        {/* Navigation Tabs (Desktop Inline, Mobile Drawer) */}
+        <nav className={`app-nav-tabs ${isMobileMenuOpen ? 'open' : ''}`}>
           {[
             { id: 'profile', label: 'My Profile' },
             { id: 'project', label: 'My Project' },
@@ -150,132 +129,61 @@ const InternLayout = ({ onLogout }) => {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActivePage(tab.id)}
-              style={activePage === tab.id ? activeTabStyle : inactiveTabStyle}
-              onMouseEnter={(e) => {
-                if (activePage !== tab.id) {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                  e.currentTarget.style.color = '#fff';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activePage !== tab.id) {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
-                }
-              }}
+              onClick={() => handleTabClick(tab.id)}
+              className={`app-nav-btn ${activePage === tab.id ? 'active' : ''}`}
             >
               {tab.label}
             </button>
           ))}
-        </div>
+        </nav>
 
-        {/* Right side */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          {/* Intern avatar + name */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Mobile Overlay Background */}
+        <div 
+          className={`mobile-nav-overlay ${isMobileMenuOpen ? 'open' : ''}`} 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+
+        {/* Right side: User info & Logout */}
+        <div className="app-header-right">
+          <div className="app-user-info">
             <InternAvatar
               internId={internData?.id}
               name={internData?.name}
               size={34}
               photoBust={internData?._photoBust || ''}
-              style={{
-                border: '1.5px solid rgba(255, 255, 255, 0.25)',
-              }}
+              style={{ border: '1.5px solid rgba(255, 255, 255, 0.25)' }}
             />
-            <span style={{
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: 600,
-              fontFamily: "'Plus Jakarta Sans', sans-serif"
-            }}>
-              {internData?.name || ''}
+            <span className="app-user-name">
+              {internData?.name || 'Intern'}
             </span>
           </div>
 
-          {/* Logout button */}
           <button
             type="button"
-            onClick={handleLogoutClick}
-            style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              color: '#fff',
-              borderRadius: '8px',
-              padding: '7px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              border: '1px solid rgba(255, 255, 255, 0.3)',
-              cursor: 'pointer',
-              outline: 'none',
-              marginLeft: '8px',
-              transition: 'background 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-            }}
+            onClick={onLogout}
+            className="app-logout-btn"
           >
             Logout
           </button>
         </div>
-      </div>
+      </header>
 
       {/* Main Content Area */}
-      <div style={{
-        marginTop: '56px',
-        height: 'calc(100vh - 56px)',
-        overflowY: 'auto',
-        width: '100vw',
-        boxSizing: 'border-box',
-        padding: '24px',
-        background: 'radial-gradient(circle at 15% 20%, rgba(232, 230, 248, 0.6) 0%, transparent 35%), radial-gradient(circle at 85% 80%, rgba(253, 246, 236, 0.6) 0%, transparent 35%), #FFFFFF',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
+      <main className="app-main-content">
         {loading ? (
           <div className="spinner-container">
             <div className="loading-spinner" role="status" aria-label="Loading details" />
           </div>
         ) : (
-          <>
-            {activePage === 'profile' && (
-              <InternProfilePage
-                internData={internData}
-                internName={internData?.name || ''}
-              />
-            )}
-            {activePage === 'project' && (
-              <InternProjectPage
-                project={project}
-                internName={internData?.name || ''}
-              />
-            )}
-            {activePage === 'tasks' && (
-              <InternTasksPage
-                tasks={tasks}
-                internId={internData?.id}
-                onUpdateTaskStatus={handleUpdateTaskStatus}
-                internName={internData?.name || ''}
-              />
-            )}
-            {activePage === 'directory' && (
-              <BatchDirectory
-                internId={internData?.id}
-                internName={internData?.name || ''}
-              />
-            )}
-            {activePage === 'exit-feedback' && (
-              <ExitFeedbackForm
-                internName={internData?.name || ''}
-                internId={internData?.id}
-              />
-            )}
-          </>
+          <div className="app-page-wrapper">
+            {activePage === 'profile' && <InternProfilePage internData={internData} internName={internData?.name || ''} />}
+            {activePage === 'project' && <InternProjectPage project={project} internName={internData?.name || ''} />}
+            {activePage === 'tasks' && <InternTasksPage tasks={tasks} internId={internData?.id} onUpdateTaskStatus={handleUpdateTaskStatus} internName={internData?.name || ''} />}
+            {activePage === 'directory' && <BatchDirectory internId={internData?.id} internName={internData?.name || ''} />}
+            {activePage === 'exit-feedback' && <ExitFeedbackForm internName={internData?.name || ''} internId={internData?.id} />}
+          </div>
         )}
-      </div>
+      </main>
     </div>
   );
 };
