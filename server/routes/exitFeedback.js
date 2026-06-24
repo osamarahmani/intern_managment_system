@@ -13,12 +13,15 @@ router.post('/', verifyToken, async (req, res) => {
   const intern_id = req.user.intern_id || req.user.id || req.user.userId
   try {
     const internRes = await pool.query(
-      `SELECT intern_status FROM interns WHERE id = $1`, [intern_id]
+      `SELECT intern_status, ending_date FROM interns WHERE id = $1`, [intern_id]
     )
     console.log('[exit-feedback POST] intern record:', internRes.rows[0])
-    if (!internRes.rows[0] || internRes.rows[0].intern_status?.toLowerCase() !== 'completed') {
-      console.log('[exit-feedback POST] REJECTED: intern_status is', internRes.rows[0]?.intern_status)
-      return res.status(403).json({ error: `Exit feedback is only available after your internship is marked complete. Current status: ${internRes.rows[0]?.intern_status}` })
+    const intern = internRes.rows[0]
+    const isCompleted = intern?.intern_status?.toLowerCase() === 'completed'
+    const isOver = intern?.ending_date && new Date() > new Date(intern.ending_date)
+    if (!intern || (!isCompleted && !isOver)) {
+      console.log('[exit-feedback POST] REJECTED: intern_status is', intern?.intern_status, 'ending_date is', intern?.ending_date)
+      return res.status(403).json({ error: `Exit feedback is only available after your internship is marked complete or the internship date is over.` })
     }
 
     const existing = await pool.query(

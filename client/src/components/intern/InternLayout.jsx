@@ -124,7 +124,7 @@ const InternLayout = ({ onLogout }) => {
             { id: 'project', label: 'My Project' },
             { id: 'tasks', label: 'My Tasks' },
             { id: 'directory', label: 'Teammates Profile' },
-            ...(internData?.intern_status === 'completed' ? [{ id: 'exit-feedback', label: 'Exit Feedback' }] : [])
+            ...((internData?.intern_status === 'completed' || (internData?.ending_date && new Date() > new Date(internData.ending_date))) ? [{ id: 'exit-feedback', label: 'Exit Feedback' }] : [])
           ].map(tab => (
             <button
               key={tab.id}
