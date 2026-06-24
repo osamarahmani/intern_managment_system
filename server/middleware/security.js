@@ -13,28 +13,57 @@ const securityHeaders = (req, res, next) => {
   next()
 }
 
-const rateLimit = ({ windowMs = 15 * 60 * 1000, max = 100, name = 'api', keyGenerator } = {}) => (req, res, next) => {
+const rateLimit = ({
+  windowMs = 15 * 60 * 1000,
+  max = 100,
+  name = 'api',
+  keyGenerator,
+  skip
+} = {}) => (req, res, next) => {
   const now = Date.now()
-  if (buckets.size > 10000) {
-    for (const [storedKey, storedBucket] of buckets) if (storedBucket.resetAt <= now) buckets.delete(storedKey)
+
+  // 1) Skip requests you do not want to rate-limit
+  if (typeof skip === 'function' && skip(req)) {
+    return next()
   }
+
+  // 2) Always skip CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return next()
+  }
+
+  // 3) Cleanup expired buckets
+  if (buckets.size > 10000) {
+    for (const [storedKey, storedBucket] of buckets) {
+      if (storedBucket.resetAt <= now) buckets.delete(storedKey)
+    }
+  }
+
   const discriminator = keyGenerator ? keyGenerator(req) : req.ip
-  const key = `${name}:${String(discriminator).slice(0, 500)}`
+  const key = `${name}:${String(discriminator || 'unknown').slice(0, 500)}`
+
   if (buckets.size >= 20000 && !buckets.has(key)) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' })
   }
+
   let bucket = buckets.get(key)
-  if (!bucket || bucket.resetAt <= now) bucket = { count: 0, resetAt: now + windowMs }
+
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + windowMs }
+  }
+
   bucket.count += 1
   buckets.set(key, bucket)
 
   res.setHeader('RateLimit-Limit', String(max))
   res.setHeader('RateLimit-Remaining', String(Math.max(0, max - bucket.count)))
   res.setHeader('RateLimit-Reset', String(Math.ceil(bucket.resetAt / 1000)))
+
   if (bucket.count > max) {
     res.setHeader('Retry-After', String(Math.ceil((bucket.resetAt - now) / 1000)))
     return res.status(429).json({ error: 'Too many requests. Please try again later.' })
   }
+
   next()
 }
 
@@ -42,8 +71,12 @@ const isValidImage = file => {
   if (!file?.buffer || file.buffer.length < 12) return false
   const b = file.buffer
   if (file.mimetype === 'image/jpeg') return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff
-  if (file.mimetype === 'image/png') return b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-  if (file.mimetype === 'image/webp') return b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP'
+  if (file.mimetype === 'image/png') {
+    return b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  }
+  if (file.mimetype === 'image/webp') {
+    return b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP'
+  }
   return false
 }
 
