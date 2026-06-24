@@ -25,6 +25,7 @@ import { downloadTaskReportPdf } from '../../utils/taskReportPdf';
 import { safeExternalUrl } from '../../utils/safeUrl';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { keepPreviousIfEqual } from '../../utils/stableState';
+import { getExitFeedbackByInternId } from '../../services/exitFeedbackService';
 
 const thStyle = {
   padding: '10px 16px',
@@ -210,6 +211,34 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber, batchId: initialBatc
   const [genStartDate, setGenStartDate] = useState('')
   const [genEndDate, setGenEndDate] = useState('')
   const [internStatusCounts, setInternStatusCounts] = useState({ active: 0, discontinued: 0, completed: 0 })
+  const [showExitFeedbackModal, setShowExitFeedbackModal] = useState(false);
+  const [exitFeedback, setExitFeedback] = useState(null);
+
+  const formatExitFeedbackDate = (dateStr) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) return dateStr
+    const day = date.getDate()
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    const month = months[date.getMonth()]
+    const year = date.getFullYear()
+    return `${day} ${month} ${year}`
+  }
+
+  const handleViewExitFeedback = async (internId) => {
+    try {
+      const fb = await getExitFeedbackByInternId(internId)
+      setExitFeedback(fb)
+      setShowExitFeedbackModal(true)
+    } catch (err) {
+      alert('Failed to load exit feedback: ' + err.message)
+    }
+  }
+
+  const handleCloseExitFeedbackModal = () => {
+    setShowExitFeedbackModal(false)
+  }
+
 
   useEffect(() => {
     if (selectedIntern) {
@@ -2287,6 +2316,25 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber, batchId: initialBatc
 
                           {/* NEW: Top-right action area */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            {selectedIntern.intern_status === 'completed' && (
+                              <button
+                                type="button"
+                                onClick={() => handleViewExitFeedback(selectedIntern.id)}
+                                style={{
+                                  padding: '9px 20px',
+                                  background: '#F0EEFF',
+                                  color: '#3D35C4',
+                                  border: '1px solid #C5B8FF',
+                                  borderRadius: '8px',
+                                  fontSize: '13px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                }}
+                              >
+                                View Exit Feedback
+                              </button>
+                            )}
                             {(() => {
                               const today = new Date(); today.setHours(0, 0, 0, 0)
                               const end = selectedIntern.ending_date ? new Date(selectedIntern.ending_date) : null
@@ -3475,7 +3523,209 @@ const ApprovedInterns = ({ batchNumber: initialBatchNumber, batchId: initialBatc
         </div>
       )}
 
+      {/* Exit Feedback Modal */}
+      {showExitFeedbackModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ background: '#fff', borderRadius: '14px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', fontFamily: "'Roboto', sans-serif" }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F0F0F0', paddingBottom: '14px', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#212121', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Exit Feedback Details
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseExitFeedbackModal}
+                style={{ background: 'none', border: 'none', fontSize: '20px', color: '#9E9E9E', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {!exitFeedback ? (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#757575', fontSize: '15px' }}>
+                No exit feedback submitted yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Photo and basic details */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', borderBottom: '1px solid #F5F5F5', paddingBottom: '16px' }}>
+                  <InternAvatar
+                    internId={exitFeedback.intern_id}
+                    name={exitFeedback.intern_name}
+                    size={80}
+                    style={{ border: '2px solid #E0E0E0' }}
+                  />
+                  <div>
+                    <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 700, color: '#212121', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {exitFeedback.intern_name}
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#757575' }}>
+                      Submitted on {formatExitFeedbackDate(exitFeedback.submitted_at)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Read only info rows */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '13px' }}>
+                  <div>
+                    <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Contact Number</span>
+                    <span style={{ color: '#212121', fontWeight: 500 }}>{exitFeedback.contact_number}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Email Address</span>
+                    <span style={{ color: '#212121', fontWeight: 500 }}>{exitFeedback.email}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>College Name</span>
+                    <span style={{ color: '#212121', fontWeight: 500 }}>{exitFeedback.college_name}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Department / Role</span>
+                    <span style={{ color: '#212121', fontWeight: 500 }}>{exitFeedback.department} — {exitFeedback.role_title}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Start Date</span>
+                    <span style={{ color: '#212121', fontWeight: 500 }}>{formatExitFeedbackDate(exitFeedback.start_date)}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>End Date</span>
+                    <span style={{ color: '#212121', fontWeight: 500 }}>{formatExitFeedbackDate(exitFeedback.end_date)}</span>
+                  </div>
+                </div>
+
+                <hr style={{ border: 0, borderTop: '1px solid #F0F0F0', margin: 0 }} />
+
+                {/* Overall Satisfaction */}
+                <div>
+                  <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>Overall Satisfaction</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '16px', fontWeight: 700, color: '#3D35C4' }}>{exitFeedback.overall_satisfaction} / 10</span>
+                    <div style={{ flex: 1, height: '8px', background: '#F0EEFF', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ width: `${exitFeedback.overall_satisfaction * 10}%`, height: '100%', background: '#3D35C4' }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mentor Supportiveness */}
+                <div>
+                  <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Mentor Supportiveness</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#212121' }}>
+                    {({
+                      not_supportive: 'Not Supportive',
+                      slightly_supportive: 'Slightly Supportive',
+                      moderately_supportive: 'Moderately Supportive',
+                      very_supportive: 'Very Supportive',
+                      exceptionally_supportive: 'Exceptionally Supportive'
+                    })[exitFeedback.mentor_supportiveness] || exitFeedback.mentor_supportiveness}
+                  </span>
+                </div>
+
+                {/* Learning Areas */}
+                <div>
+                  <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '6px' }}>Learning Areas</span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {exitFeedback.learning_areas.map((area, idx) => (
+                      <span key={idx} style={{ padding: '4px 10px', background: '#F0EEFF', color: '#3D35C4', borderRadius: '14px', fontSize: '12px', fontWeight: 600 }}>
+                        {area}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Aspect Ratings Grid */}
+                <div>
+                  <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>Aspect Ratings</span>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #E0E0E0' }}>
+                          <th style={{ textAlign: 'left', padding: '8px', color: '#666' }}>Aspect</th>
+                          {['Poor', 'Fair', 'Good', 'Excellent'].map(h => (
+                            <th key={h} style={{ textAlign: 'center', padding: '8px', color: '#666' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { label: 'Clarity of expectations and goals', val: exitFeedback.rating_clarity },
+                          { label: 'Access to necessary resources/tools', val: exitFeedback.rating_resources },
+                          { label: 'Work-life balance', val: exitFeedback.rating_work_life_balance },
+                          { label: 'Integration into the team culture', val: exitFeedback.rating_team_integration }
+                        ].map((row, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #F5F5F5' }}>
+                            <td style={{ padding: '10px 8px', color: '#212121', fontWeight: 500 }}>{row.label}</td>
+                            {['poor', 'fair', 'good', 'excellent'].map(level => {
+                              const selected = row.val === level
+                              return (
+                                <td key={level} style={{ textAlign: 'center', padding: '10px 8px', background: selected ? '#F0EEFF' : 'transparent', color: selected ? '#3D35C4' : '#757575', fontWeight: selected ? 700 : 400 }}>
+                                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Recommendation Rating */}
+                <div>
+                  <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '6px' }}>Recommendation Rating</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <span key={star} style={{ fontSize: '20px', color: star <= exitFeedback.recommendation_rating ? '#F9A825' : '#E0E0E0' }}>
+                        ★
+                      </span>
+                    ))}
+                    <span style={{ marginLeft: '8px', fontSize: '14px', fontWeight: 700, color: '#212121' }}>{exitFeedback.recommendation_rating} / 5</span>
+                  </div>
+                </div>
+
+                {/* Testimonial */}
+                <div>
+                  <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '6px' }}>Testimonial</span>
+                  <blockquote style={{ margin: 0, paddingLeft: '14px', borderLeft: '4px solid #3D35C4', fontStyle: 'italic', color: '#424242', fontSize: '14px', lineHeight: '1.6' }}>
+                    "{exitFeedback.testimonial}"
+                  </blockquote>
+                </div>
+
+                {/* Improvement Suggestion */}
+                <div>
+                  <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Improvement Suggestion</span>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#424242', lineHeight: '1.5' }}>
+                    {exitFeedback.improvement_suggestion}
+                  </p>
+                </div>
+
+                {/* Consent */}
+                <div>
+                  <span style={{ display: 'block', color: '#9E9E9E', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Consent</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#212121' }}>
+                    {({
+                      name_and_testimonial: 'Yes, you may use both my name and testimonial.',
+                      anonymous: 'Yes, you may use my testimonial but please keep it anonymous.',
+                      private: 'No, please keep this feedback private.'
+                    })[exitFeedback.consent] || exitFeedback.consent}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px', borderTop: '1px solid #F0F0F0', paddingTop: '14px' }}>
+              <button
+                type="button"
+                onClick={handleCloseExitFeedbackModal}
+                style={{ height: '38px', padding: '0 20px', background: '#3D35C4', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Discontinue Modal */}
+
       {showDiscontinueModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
           <div style={{ background: '#fff', borderRadius: '14px', width: '100%', maxWidth: '440px', padding: '28px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>

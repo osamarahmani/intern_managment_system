@@ -165,6 +165,35 @@ const runMigration = async () => {
       )
     `)
 
+    // intern_exit_feedback table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.intern_exit_feedback (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        intern_id uuid NOT NULL UNIQUE REFERENCES public.interns(id) ON DELETE CASCADE,
+        intern_name text NOT NULL,
+        contact_number text NOT NULL,
+        email text NOT NULL,
+        college_name text NOT NULL,
+        department text NOT NULL,
+        role_title text NOT NULL,
+        start_date date NOT NULL,
+        end_date date NOT NULL,
+        overall_satisfaction integer NOT NULL CHECK (overall_satisfaction BETWEEN 1 AND 10),
+        mentor_supportiveness text NOT NULL CHECK (mentor_supportiveness IN ('not_supportive','slightly_supportive','moderately_supportive','very_supportive','exceptionally_supportive')),
+        learning_areas text[] NOT NULL DEFAULT '{}',
+        rating_clarity text NOT NULL CHECK (rating_clarity IN ('poor','fair','good','excellent')),
+        rating_resources text NOT NULL CHECK (rating_resources IN ('poor','fair','good','excellent')),
+        rating_work_life_balance text NOT NULL CHECK (rating_work_life_balance IN ('poor','fair','good','excellent')),
+        rating_team_integration text NOT NULL CHECK (rating_team_integration IN ('poor','fair','good','excellent')),
+        recommendation_rating integer NOT NULL CHECK (recommendation_rating BETWEEN 1 AND 5),
+        testimonial text NOT NULL,
+        improvement_suggestion text NOT NULL,
+        consent text NOT NULL CHECK (consent IN ('name_and_testimonial','anonymous','private')),
+        submitted_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `)
+
     // 7. password_reset_tokens table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.password_reset_tokens (

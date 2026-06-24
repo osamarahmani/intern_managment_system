@@ -51,6 +51,7 @@ const verifyToken = async (req, res, next) => {
     req.user = decoded
     next()
   } catch (err) {
+    console.error('[verifyToken] Auth token verification failed:', err)
     return rejectAndClearSession(res, 403, 'Invalid token')
   }
 }

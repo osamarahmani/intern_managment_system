@@ -11,7 +11,7 @@ import InternProfilePage from './pages/InternProfile';
 import InternProjectPage from './pages/InternProject';
 import InternTasksPage from './pages/InternTasks';
 import BatchDirectory from './pages/BatchDirectory';
-// import ExitFeedbackForm from './ExitFeedbackForm';
+import ExitFeedbackForm from './ExitFeedbackForm';
 
 const InternLayout = ({ onLogout }) => {
   const [internData, setInternData] = useState(null);
@@ -124,7 +124,7 @@ const InternLayout = ({ onLogout }) => {
             { id: 'project', label: 'My Project' },
             { id: 'tasks', label: 'My Tasks' },
             { id: 'directory', label: 'Teammates Profile' },
-            // ...(internData?.intern_status === 'completed' ? [{ id: 'exit-feedback', label: 'Exit Feedback' }] : [])
+            ...(internData?.intern_status === 'completed' ? [{ id: 'exit-feedback', label: 'Exit Feedback' }] : [])
           ].map(tab => (
             <button
               key={tab.id}
