@@ -1,6 +1,7 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
+const { getPrimaryClientUrl } = require('../utils/clientUrls')
 const upload = require('../middleware/upload')
 const userQueries = require('../db/queries/users')
 const internQueries = require('../db/queries/interns')
@@ -335,7 +336,7 @@ router.post('/forgot-password', resetLimit, async (req, res) => {
       [normalizedEmail, tokenHash, expiresAt]
     )
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173'
+    const clientUrl = getPrimaryClientUrl()
     const resetLink = `${clientUrl.replace(/\/$/, '')}/#reset-token=${token}`
 
     try {
