@@ -1,0 +1,121 @@
+.gateway-header {
+  background-color: #FFFFFF;
+  width: 100%;
+  height: 64px;
+  padding: 0 40px;
+  border-bottom: 1px solid #EEEEEE;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 100;
+}
+
+.header-container {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+
+.nav-actions {
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Register Prompt Styling */
+.register-prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prompt-text {
+  color: #757575;
+  font-size: 14px;
+}
+
+.register-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--primary-variant); /* #2A259A */
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s ease, text-decoration 0.2s ease;
+}
+
+.register-link:hover {
+  text-decoration: underline;
+  color: var(--primary); /* #3D35C4 */
+}
+
+.register-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* Responsive Styles */
+@media (max-width: 600px) {
+  .gateway-header {
+    padding: 0 20px;
+    height: 56px;
+  }
+
+  .brand-logo {
+    width: 130px;
+  }
+
+  .prompt-text {
+    font-size: 12px;
+  }
+
+  .register-link {
+    font-size: 12px;
+  }
+}
+
+/* Admin Badge & Logout Styles */
+.admin-header-badge-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.admin-badge {
+  background-color: var(--primary); /* #3D35C4 */
+  color: #FFFFFF;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 8px rgba(61, 53, 196, 0.2);
+}
+
+.logout-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #757575;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.1s ease;
+}
+
+.logout-link:hover {
+  color: var(--primary); /* #3D35C4 */
+  text-decoration: underline;
+}
+
+.logout-link:active {
+  transform: scale(0.97);
+}
