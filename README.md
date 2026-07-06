@@ -209,3 +209,7 @@ Intern accounts are **pending** until an admin approves them.
 - Only `.env.example` files should be committed
 - Passwords are hashed with bcryptjs — never stored in plain text
 - Photos are stored as PostgreSQL `bytea` blobs
+
+
+
+commit for new mail server
